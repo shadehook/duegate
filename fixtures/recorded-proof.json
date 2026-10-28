@@ -1,0 +1,60 @@
+{
+  "notice": "Sanitized historical sandbox summary. Identifiers are display aliases, not API identifiers. Replay is offline; no new execution.",
+  "counts": {
+    "conversions": 1,
+    "transfers": 1
+  },
+  "quote": {
+    "quote_id": "recorded-quote",
+    "source_currency": "USD",
+    "target_currency": "EUR",
+    "source_amount": "112",
+    "target_amount": "100",
+    "source_fee_amount": "0",
+    "expires_at": "2026-10-27T18:02:50.000Z",
+    "valid_from_at": "2026-10-27T17:47:50.000Z",
+    "rate": "1.120465",
+    "currency_pair": "EURUSD",
+    "conversion_date": "2026-10-27",
+    "usage": "MULTI_USE"
+  },
+  "conversion": {
+    "id": "recorded-conversion",
+    "status": "SETTLED"
+  },
+  "transfer": {
+    "id": "recorded-transfer",
+    "status": "PROCESSING",
+    "fee_amount": "0",
+    "fee_currency": "EUR"
+  },
+  "funding_status": "FUNDED",
+  "before": [
+    {
+      "currency": "EUR",
+      "available": "1000000782",
+      "pending": "0",
+      "total": "1000000782"
+    },
+    {
+      "currency": "USD",
+      "available": "999998774",
+      "pending": "0",
+      "total": "999998774"
+    }
+  ],
+  "after": [
+    {
+      "currency": "EUR",
+      "available": "1000000782",
+      "pending": "0",
+      "total": "1000000782"
+    },
+    {
+      "currency": "USD",
+      "available": "999998662",
+      "pending": "0",
+      "total": "999998662"
+    }
+  ]
+}

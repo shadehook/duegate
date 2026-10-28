@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FundingUpdateResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["classification", "expected_inflow_id", "amount_minor", "currency", "new_eta", "source_text_hash", "extracted_facts", "ambiguities", "parser_version"],
+  "properties": {
+    "classification": {"enum": ["ON_TIME", "DELAYED", "CANCELLED", "AMOUNT_CHANGED", "IRRELEVANT", "AMBIGUOUS"]},
+    "expected_inflow_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9_-]{1,200}$"},
+    "amount_minor": {"type": ["integer", "null"], "minimum": 0, "maximum": 9007199254740991},
+    "currency": {"enum": ["USD", "EUR", null]},
+    "new_eta": {"anyOf": [{"$ref": "#/$defs/timestamp"}, {"type": "null"}]},
+    "source_text_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "parser_version": {"const": "deterministic-funding-v1"},
+    "ambiguities": {"type": "array", "maxItems": 20, "items": {"enum": ["INVALID_DATE", "AMBIGUOUS_OR_NONEXISTENT_LOCAL_TIME", "UNSUPPORTED_OR_VAGUE_DATE", "EXACT_TIME_REQUIRED", "INVALID_AMOUNT", "AMOUNT_OUT_OF_RANGE", "INVALID_CONTEXT", "INVALID_KNOWN_INFLOWS", "INFLOW_NOT_UNIQUELY_IDENTIFIED", "UNKNOWN_OR_UNIDENTIFIED_INFLOW", "CURRENCY_MISMATCH", "OLD_AMOUNT_MISMATCH", "UNSUPPORTED_OR_VAGUE_UPDATE", "ETA_NOT_FUTURE", "CONTRADICTORY_DELAY", "CONFLICTING_FACTS", "INVALID_CONTEXT_OR_SCHEMA"]}},
+    "extracted_facts": {"type": "array", "maxItems": 20, "items": {"oneOf": [
+      {"type": "object", "additionalProperties": false, "required": ["kind", "amount_minor", "currency"], "properties": {"kind": {"const": "AMOUNT"}, "amount_minor": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}, "currency": {"enum": ["USD", "EUR"]}}},
+      {"type": "object", "additionalProperties": false, "required": ["kind", "eta"], "properties": {"kind": {"const": "ETA"}, "eta": {"$ref": "#/$defs/timestamp"}}},
+      {"type": "object", "additionalProperties": false, "required": ["kind", "status"], "properties": {"kind": {"const": "STATUS"}, "status": {"enum": ["ON_TIME", "DELAYED", "CANCELLED"]}}}
+    ]}}
+  },
+  "$defs": {"timestamp": {"type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"}},
+  "allOf": [
+    {"if": {"properties": {"classification": {"const": "AMBIGUOUS"}}}, "then": {"properties": {"ambiguities": {"minItems": 1}}}, "else": {"properties": {"ambiguities": {"maxItems": 0}}}},
+    {"if": {"properties": {"classification": {"const": "IRRELEVANT"}}}, "then": {"properties": {"expected_inflow_id": {"type": "null"}, "amount_minor": {"type": "null"}, "currency": {"type": "null"}, "new_eta": {"type": "null"}, "extracted_facts": {"maxItems": 0}}}},
+    {"if": {"properties": {"classification": {"enum": ["ON_TIME", "DELAYED", "CANCELLED", "AMOUNT_CHANGED"]}}}, "then": {"properties": {"expected_inflow_id": {"type": "string"}, "amount_minor": {"type": "integer"}, "currency": {"type": "string"}, "extracted_facts": {"minItems": 1}}}},
+    {"if": {"properties": {"classification": {"enum": ["ON_TIME", "DELAYED", "AMOUNT_CHANGED"]}}}, "then": {"properties": {"new_eta": {"$ref": "#/$defs/timestamp"}}}},
+    {"if": {"properties": {"classification": {"const": "CANCELLED"}}}, "then": {"properties": {"new_eta": {"type": "null"}}}}
+  ]
+}

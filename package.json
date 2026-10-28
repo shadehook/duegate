@@ -1,0 +1,20 @@
+{
+  "name": "duegate-decision-spike",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node scripts/build-demo.mjs",
+    "demo": "npm run build && node server/demo-server.mts",
+    "test": "node --test tests/*.test.mts",
+    "typecheck": "tsc --noEmit",
+    "demo:final": "npm run build && node server/demo-server.mts --final-proof",
+    "demo:presentation": "npm run build && node server/demo-server.mts --presentation"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "typescript": "7.0.2"
+  }
+}

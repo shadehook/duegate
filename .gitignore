@@ -1,0 +1,35 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+build/
+coverage/
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+tmp/
+temp/
+__pycache__/
+*.pyc
+*.pem
+*.key
+*.p12
+*.har
+.spike-state/
+.execution-state/
+.demo-final-proof/
+.demo-state/
+.presentation-state/
+# Private research, raw proof, screenshots and historical reports stay local.
+/docs/*
+!/docs/architecture.md
+!/docs/demo.md
+!/docs/proof.md
+!/docs/github-readiness-report.md
+# Publish only the frontend build runner; historical execution tools stay local.
+/scripts/*
+!/scripts/build-demo.mjs

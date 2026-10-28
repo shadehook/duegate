@@ -1,0 +1,101 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "classification",
+    "expected_inflow_id",
+    "amount_minor",
+    "currency",
+    "eta_precision",
+    "new_eta_exact",
+    "new_eta_date",
+    "eta_window_start",
+    "eta_window_end",
+    "ambiguities"
+  ],
+  "properties": {
+    "classification": {
+      "type": "string",
+      "enum": [
+        "ON_TIME",
+        "DELAYED",
+        "CANCELLED",
+        "AMOUNT_CHANGED",
+        "IRRELEVANT",
+        "AMBIGUOUS"
+      ]
+    },
+    "expected_inflow_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "amount_minor": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "currency": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "USD",
+        "EUR",
+        null
+      ]
+    },
+    "eta_precision": {
+      "type": "string",
+      "enum": [
+        "EXACT_TIMESTAMP",
+        "DATE",
+        "TIME_WINDOW",
+        "UNKNOWN"
+      ]
+    },
+    "new_eta_exact": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "new_eta_date": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "eta_window_start": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "eta_window_end": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ambiguities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "UNIDENTIFIED_INFLOW",
+          "CONFLICTING_DATES",
+          "VAGUE_TIME",
+          "CURRENCY_MISMATCH",
+          "UNKNOWN_INFLOW",
+          "CONTRADICTORY_FACTS"
+        ]
+      }
+    }
+  }
+}
