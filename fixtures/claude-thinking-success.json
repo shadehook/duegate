@@ -1,0 +1,17 @@
+{
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-5-5",
+  "stop_reason": "end_turn",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "Synthetic ignored block; not financial facts.",
+      "signature": "synthetic-signature"
+    },
+    {
+      "type": "text",
+      "text": "{\"classification\":\"DELAYED\",\"expected_inflow_id\":\"INFLOW-001\",\"amount_minor\":400000,\"currency\":\"USD\",\"eta_precision\":\"DATE\",\"new_eta_exact\":null,\"new_eta_date\":\"2026-10-12\",\"eta_window_start\":null,\"eta_window_end\":null,\"ambiguities\":[]}"
+    }
+  ]
+}

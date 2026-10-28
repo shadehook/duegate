@@ -33,3 +33,6 @@ __pycache__/
 # Publish only the frontend build runner; historical execution tools stay local.
 /scripts/*
 !/scripts/build-demo.mjs
+
+.presentation-claude-state/
+!/docs/claude-integration.md

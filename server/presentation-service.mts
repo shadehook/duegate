@@ -1,5 +1,6 @@
 import {readFileSync,writeFileSync,existsSync,mkdirSync,appendFileSync} from 'node:fs';
 import {join} from 'node:path';
+import type {InterpretationAdapter} from '../src/claude-funding-interpreter.mts';
 import {DemoService,FINAL_PAYABLE} from './demo-service.mts';
 import {ApprovalStore} from '../src/approval-store.mts';
 import type {AirwallexAdapter,QuotedFx,WalletBalance} from '../src/airwallex-adapter.mts';
@@ -8,10 +9,10 @@ import {major} from '../src/airwallex-adapter.mts';
 interface RecordedSummary {quote:QuotedFx;counts:{conversions:number;transfers:number};before:{currency:string;available:string;pending:string;total:string}[];after:{currency:string;available:string;pending:string;total:string}[];conversion:{id:string;status:string};transfer:{id:string;status:string;fee_amount:string;fee_currency:string};funding_status:string}
 /** Offline data adapter. Every money-moving operation throws; no HTTP or credentials. */
 export class RecordedAdapter implements AirwallexAdapter {
-  private summary:RecordedSummary;private sequence=0;private counterPath:string;writeAttempts=0;
-  constructor(summary:RecordedSummary,counterPath:string){this.summary=summary;this.counterPath=counterPath;if(existsSync(counterPath))this.sequence=Number(readFileSync(counterPath,'utf8'));}
+  private summary:RecordedSummary;private sequence=0;private counterPath:string;private quoteClock?:()=>string;writeAttempts=0;
+  constructor(summary:RecordedSummary,counterPath:string,quoteClock?:()=>string){this.quoteClock=quoteClock;this.summary=summary;this.counterPath=counterPath;if(existsSync(counterPath))this.sequence=Number(readFileSync(counterPath,'utf8'));}
   async getWalletBalances():Promise<WalletBalance[]>{return this.summary.before.map(x=>({...x,available:BigInt(x.available),pending:BigInt(x.pending),total:BigInt(x.total)}));}
-  async createFxQuote():Promise<QuotedFx>{this.sequence++;writeFileSync(this.counterPath,String(this.sequence));return {...this.summary.quote,quote_id:'presentation-quote-'+this.sequence,source_amount:BigInt(this.summary.quote.source_amount),target_amount:BigInt(this.summary.quote.target_amount),source_fee_amount:BigInt(this.summary.quote.source_fee_amount)};}
+  async createFxQuote():Promise<QuotedFx>{this.sequence++;writeFileSync(this.counterPath,String(this.sequence));return {...this.summary.quote,quote_id:'presentation-quote-'+this.sequence,...(this.quoteClock?{valid_from_at:this.quoteClock(),expires_at:new Date(Date.parse(this.quoteClock())+900000).toISOString()}:{}),source_amount:BigInt(this.summary.quote.source_amount),target_amount:BigInt(this.summary.quote.target_amount),source_fee_amount:BigInt(this.summary.quote.source_fee_amount)};}
   async getRelevantBeneficiary(id:string){return {id,country:'DE',currency:'EUR',transfer_methods:['LOCAL']};}
   async validateTransfer(){throw new Error('NO_WRITE_PRESENTATION_NO_VALIDATION');}
   async createConversion():Promise<never>{this.writeAttempts++;throw new Error('NO_WRITE_PRESENTATION');}
@@ -21,11 +22,12 @@ export class RecordedAdapter implements AirwallexAdapter {
 }
 export class PresentationService {
   readonly adapter:RecordedAdapter;private demo:DemoService;private dir:string;private summary:RecordedSummary;private attached=false;private events:{at:string;event:string;detail:string}[]=[];
-  private readonly clock=()=> '2026-10-27T17:48:00.000Z';
-  constructor(directory:string,evidencePath='fixtures/recorded-proof.json'){
+  private clock=()=> '2026-10-27T17:48:00.000Z';
+  constructor(directory:string,evidencePath='fixtures/recorded-proof.json',interpretation?:InterpretationAdapter){
+    if(interpretation?.provider==='claude')this.clock=()=> '2026-10-07T12:00:00.000Z';
     this.dir=directory;mkdirSync(directory,{recursive:true});this.summary=JSON.parse(readFileSync(evidencePath,'utf8'));
     if(this.summary.counts.conversions!==1||this.summary.counts.transfers!==1)throw new Error('RECORDED_PROOF_COUNTS_INVALID');
-    this.adapter=new RecordedAdapter(this.summary,join(directory,'quote-sequence.txt'));this.demo=new DemoService(this.adapter,join(directory,'interaction'),this.clock,{finalProof:true,financialWritesEnabled:false});
+    this.adapter=new RecordedAdapter(this.summary,join(directory,'quote-sequence.txt'),interpretation?.provider==='claude'?this.clock:undefined);this.demo=new DemoService(this.adapter,join(directory,'interaction'),this.clock,{finalProof:true,financialWritesEnabled:false,interpretation,claudeStory:interpretation?.provider==='claude'});
     this.attached=existsSync(join(directory,'recorded-attached.json'));
     if(existsSync(join(directory,'presentation-audit.jsonl')))this.events=readFileSync(join(directory,'presentation-audit.jsonl'),'utf8').trim().split('\n').filter(Boolean).map(x=>JSON.parse(x));
   }

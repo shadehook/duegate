@@ -31,13 +31,31 @@ Checks cover cash, reserve, commitments, expected inflow timing, cutoff, FX fres
 
 Approval is bound to a fingerprint of the exact payable, treasury/funding context, reserve, commitments, FX policy and quote. A protected change invalidates approval. Execution fails closed and requires a new approval. EXECUTE eligibility alone does not authorize money movement.
 
-### Agentic architecture and AI boundary
+## Live financial-context interpretation
 
-The current demo uses a deterministic funding-message interpreter. Typed facts pass schema, identity and temporal validation before affecting state. A replaceable interpreter interface and optional OpenAI adapter exist; no live model provider is verified in this demo. Claude integration is upcoming, not implemented.
+DueGate accepts unstructured finance updates such as:
 
-Intended path: unstructured finance message → Claude extracts typed facts → deterministic DueGate controls decide → human approves → Airwallex executes.
+> The $4,000 customer payment expected Thursday has been delayed until Monday.
 
-**The LLM does not decide whether money moves.** Model output and user-facing text cannot override the execution controls.
+Claude extracts typed facts: a USD 4,000 inflow is delayed from the known Thursday arrival to Monday. DueGate validates and normalizes those facts before applying them. In the verified live example, Monday remained a date/window rather than an invented exact time; DueGate independently returned **ESCALATE / INFLOW_TOO_LATE** against the Friday cutoff.
+
+```text
+Unstructured finance update
+          ↓
+Claude fact extraction
+          ↓
+Schema + domain validation
+          ↓
+DueGate deterministic controls
+          ↓
+Human approval
+          ↓
+Guarded Airwallex execution
+```
+
+**Claude does NOT decide whether the payment moves.** It cannot execute a transfer, approve a payment, choose a beneficiary, override reserve/FX/cutoff policies, or directly decide WAIT / EXECUTE / ESCALATE / BLOCK_DUPLICATE. The deterministic engine owns financial decisions. The demo uses recorded Airwallex execution evidence, so its live Claude step cannot move money.
+
+Live verification: **PASS** — claude-haiku-5-5, HTTP 200, schema/domain validation PASS, temporal uncertainty preserved. Thinking blocks were ignored; only the single text output entered validation. The offline deterministic interpreter remains available. [Integration details](docs/claude-integration.md).
 
 ## Airwallex integration
 
@@ -69,7 +87,15 @@ The EUR 10,000 narrative obligation was **not executed**. The recorded proof con
 
 The judge demo does not need an .env file. For separately authorized sandbox development, copy .env.example to .env and fill values locally. AIRWALLEX_CLIENT_ID and AIRWALLEX_API_KEY authenticate; DUEGATE_SANDBOX_BENEFICIARY_ID must reference an existing sandbox beneficiary. Never put credentials in Git, screenshots or audit exports. npm run demo and npm run demo:final require local sandbox configuration; neither enables financial writes by default. Do not use production credentials. No new transfer is needed to review this project.
 
-OPENAI_API_KEY, DUEGATE_LLM_PROVIDER and DUEGATE_LLM_MODEL are optional adapter configuration; they are not required by the offline demo. No Anthropic credential is consumed by current code.
+OPENAI_API_KEY, DUEGATE_LLM_PROVIDER and DUEGATE_LLM_MODEL are optional adapter configuration; they are not required by the offline demo. The separate Claude mode uses ANTHROPIC_API_KEY and optional ANTHROPIC_MODEL on the server only.
+
+## Live Claude setup
+
+Keep ANTHROPIC_API_KEY in local .env; set ANTHROPIC_MODEL to an account-supported structured-output model, or leave it empty for claude-haiku-5-5. Do not paste keys into the browser or chat. Run `npm run demo:claude` only when you intend to make a paid interpretation request; each click on Interpret update makes at most one request. No request is made on startup, rendering or polling.
+
+Claude is used only for interpretation of unstructured finance context. All payment decisions remain deterministic. The separate .presentation-claude-state directory uses a synthetic USD 4,000 inflow and October 7 demo clock while retaining EUR 1.00 recorded proof. Review typed facts and select Apply update & reevaluate. Execution evidence is recorded, never resubmitted. No Airwallex credentials are required in this mode.
+
+**Verified live result:** USD 4,000 delayed to Monday, October 12, 2026; DATE precision retained; DueGate applied the inflow update and returned ESCALATE / INFLOW_TOO_LATE. No Airwallex call was made.
 
 ## Historical sandbox proof
 
@@ -81,11 +107,11 @@ Public evidence uses display aliases instead of provider identifiers. The privat
 
 TypeScript, Node.js native HTTP/fetch/filesystem/crypto, a plain HTML/CSS/TypeScript frontend, Node's built-in test runner, and local filesystem persistence. No frontend framework, database service or external font dependency is required.
 
-Verified repository suite: **218 passed, 0 failed**; strict TypeScript typecheck PASS; frontend build PASS. Tests use mock/recorded adapters and make no financial writes.
+Verified repository suite: **318 passed, 0 failed**; strict TypeScript typecheck PASS; frontend build PASS. Secret scan PASS; live Claude interpretation PASS; historical Airwallex execution proof preserved. Tests use mock/recorded adapters and make no financial writes. Claude integration work created zero conversions and zero transfers.
 
 ## Limitations
 
-Local filesystem arbitration is not a distributed production transaction system. Human operator identity is a local demo label, not authenticated enterprise identity. Production custody, permissions, recovery operations, deployment hardening and live-model evaluation remain outside this prototype. Do not delete a live execution ledger to retry a payment.
+Local filesystem arbitration is not a distributed production transaction system. Human operator identity is a local demo label, not authenticated enterprise identity. Production custody, permissions, recovery operations, deployment hardening and broader live-model evaluation remain outside this prototype. Do not delete a live execution ledger to retry a payment.
 
 [Architecture](docs/architecture.md) · [Demo](docs/demo.md) · [Proof](docs/proof.md) · [Repository readiness](docs/github-readiness-report.md)
 

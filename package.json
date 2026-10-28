@@ -11,7 +11,8 @@
     "test": "node --test tests/*.test.mts",
     "typecheck": "tsc --noEmit",
     "demo:final": "npm run build && node server/demo-server.mts --final-proof",
-    "demo:presentation": "npm run build && node server/demo-server.mts --presentation"
+    "demo:presentation": "npm run build && node server/demo-server.mts --presentation",
+    "demo:claude": "npm run build && node server/demo-server.mts --presentation --claude"
   },
   "devDependencies": {
     "@types/node": "24.19.1",

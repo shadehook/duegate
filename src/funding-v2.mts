@@ -1,3 +1,5 @@
+import {diagnostic,safeDiagnostic} from './funding-diagnostics.mts';
+import type {FundingDiagnostic,DiagnosticCode} from './funding-diagnostics.mts';
 import { sourceHash, interpretFundingUpdate } from './funding-update.mts';
 import type { Classification, FundingInterpreter, KnownInflow } from './funding-update.mts';
 import { dateWindow, resolveDay, isTimestamp, parts, validateWindow } from './temporal.mts';
@@ -139,22 +141,24 @@ export const deterministicFundingV2: FundingInterpreter<FundingUpdateV2>={interp
   return validateCandidate(c,raw,known,reference,timezone);
 }};
 
-export interface FundingApplyV2 {state:TreasuryState; outcome:'APPLIED'|'NO_CHANGE'|'DUPLICATE'|'REJECTED';review_required:boolean;receipt:string}
+export interface FundingApplyV2 {state:TreasuryState; outcome:'APPLIED'|'NO_CHANGE'|'DUPLICATE'|'REJECTED';review_required:boolean;receipt:string;diagnostic?:FundingDiagnostic}
 export function applyFundingV2(state:TreasuryState, candidate:FundingUpdateV2,raw:string,known:readonly KnownInflow[],reference:string,timezone:string,receipts:readonly string[]):FundingApplyV2 {
-  const reject:FundingApplyV2={state,outcome:'REJECTED',review_required:true,receipt:''};
+  const reject=(code:DiagnosticCode,detail?:FundingDiagnostic):FundingApplyV2=>({state,outcome:'REJECTED',review_required:true,receipt:'',diagnostic:detail??diagnostic(code)});
   let c:FundingUpdateV2;
   try {
-    if(candidate.parser_version!==FUNDING_V2||candidate.source_text_hash!==sourceHash(raw))return reject;
+    if(candidate.parser_version!==FUNDING_V2||candidate.source_text_hash!==sourceHash(raw))return reject('INVALID_PROVENANCE');
     c=validateCandidate(wireCandidate(candidate),raw,known,reference,timezone);
-    if(JSON.stringify(c.extracted_facts)!==JSON.stringify(candidate.extracted_facts))return reject;
-  }catch{return reject;}
+    if(JSON.stringify(c.extracted_facts)!==JSON.stringify(candidate.extracted_facts))return reject('INVALID_FACTS');
+  }catch(error){return reject('DOMAIN_VALIDATION_FAILED',safeDiagnostic(error));}
   const receipt=sourceHash(JSON.stringify([state.expected_inflow_id,c.source_text_hash,FUNDING_V2]));
   if(c.classification==='IRRELEVANT')return {state,outcome:'NO_CHANGE',review_required:false,receipt};
-  if(c.classification==='AMBIGUOUS'||c.expected_inflow_id!==state.expected_inflow_id||c.currency!==state.source_currency)return reject;
+  if(c.classification==='AMBIGUOUS')return reject('AMBIGUOUS_UPDATE');
+  if(c.expected_inflow_id!==state.expected_inflow_id)return reject('APPLICATION_IDENTITY_MISMATCH');
+  if(c.currency!==state.source_currency)return reject('APPLICATION_CURRENCY_MISMATCH');
   if(receipts.includes(receipt))return {state,outcome:'DUPLICATE',review_required:false,receipt};
-  if(!['pending','confirmed'].includes(state.expected_inflow_status))return reject;
+  if(!['pending','confirmed'].includes(state.expected_inflow_status))return reject('INFLOW_NOT_APPLICABLE');
   const k=known.find(k=>k.id===state.expected_inflow_id);
-  if(!k||BigInt(k.amount_minor)!==state.expected_inflow_amount)return reject;
+  if(!k||BigInt(k.amount_minor)!==state.expected_inflow_amount)return reject('INFLOW_CONTEXT_MISMATCH');
   let window:EtaWindow|null=null,exact=c.new_eta_exact;
   if(c.eta_precision==='DATE'||c.eta_precision==='TIME_WINDOW')window={precision:c.eta_precision,date:c.new_eta_date,timezone,start:c.eta_window_start!,end:c.eta_window_end!};
   // On-time date restatement must preserve the more precise existing instant.
@@ -162,7 +166,7 @@ export function applyFundingV2(state:TreasuryState, candidate:FundingUpdateV2,ra
     const old=state.expected_inflow_eta;
     if(old && (exact===old||(window&&Date.parse(old)>=Date.parse(window.start)&&Date.parse(old)<Date.parse(window.end))))return {state,outcome:'NO_CHANGE',review_required:false,receipt};
     if(JSON.stringify(state.expected_inflow_eta_window)===JSON.stringify(window))return {state,outcome:'NO_CHANGE',review_required:false,receipt};
-    return reject;
+    return reject('ON_TIME_CONTEXT_MISMATCH');
   }
   const next:TreasuryState={...state,expected_inflow_amount:BigInt(c.amount_minor!),expected_inflow_status:c.classification==='CANCELLED'?'cancelled':state.expected_inflow_status,
     expected_inflow_eta:c.classification==='CANCELLED'?state.expected_inflow_eta:exact,

@@ -1,4 +1,5 @@
 export interface CaseView {
+  interpreterProvider?:'claude'|'deterministic';
   fundingPreviousEta?:string;
   presentationMode?:boolean;recordedAttached?:boolean;connectionLabel?:string;approvalReason?:string;recordedFunding?:string;recordedFee?:string;
   finalProof?:boolean;financialWritesEnabled?:boolean;quoteLimit?:string;fundingExample?:string;

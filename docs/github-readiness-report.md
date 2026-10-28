@@ -1,6 +1,6 @@
 # GitHub readiness report
 
-Repository preparation verification: 2026-10-28.
+Initial repository preparation verification: 2026-10-28. Historical checklist below records that preparation; current Claude completion and 318-test validation are documented in README and docs/claude-integration.md.
 
 1. **Repository readiness: PASS.** Sanitized publication tree and reproducible offline demo prepared for shadehook/duegate.
 2. **Secret scan: PASS.** Configured credential values were found only in excluded .env during the first-party inventory scan. Exact staged-content checks found no configured private values, recognizable provider keys, JWTs or private keys. Checks do not constitute a formal security certification.
@@ -19,7 +19,7 @@ Repository preparation verification: 2026-10-28.
 15. **Frontend build: PASS.** npm run build in both environments.
 16. **Financial writes: conversions 0, transfers 0.** No Airwallex calls during this preparation.
 17. **Safe to make public: YES**, based on the audited staged content. The repository remains private; changing visibility requires the owner's separate decision. Future files and commits need the same review.
-18. **Remaining issues before public release:** No technical publication blocker identified. No license was selected; none was added. Owner must decide visibility/judge access and any license grant. Live Claude is upcoming, not implemented; no live LLM provider is verified. Sandbox transfer delivery remains unproven. Local demo identity, filesystem persistence and operational recovery are prototype limitations, not production guarantees.
+18. **Remaining issues before public release:** No technical publication blocker identified. No license was selected; none was added. Owner must decide visibility/judge access and any license grant. At initial preparation Claude was not implemented. It is now complete for the scoped interpretation flow, with successful live verification; see docs/claude-integration.md. Sandbox transfer delivery remains unproven. Local demo identity, filesystem persistence and operational recovery are prototype limitations, not production guarantees.
 
 ## Scope of code changes
 

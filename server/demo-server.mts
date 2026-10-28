@@ -3,6 +3,8 @@ import {readFileSync} from 'node:fs';
 import {randomBytes} from 'node:crypto';
 import {resolve} from 'node:path';
 import {DemoService} from './demo-service.mts';
+import {existsSync} from 'node:fs';
+import {ClaudeFundingInterpreter} from '../src/claude-funding-interpreter.mts';
 import {PresentationService} from './presentation-service.mts';
 const origin='http://127.0.0.1:4311',session=randomBytes(32).toString('hex');
 const finalProof=process.argv.includes('--final-proof');
@@ -10,7 +12,11 @@ const presentation=process.argv.includes('--presentation');
 if(presentation&&process.argv.includes('--authorize-final-eur1'))throw new Error('PRESENTATION_CANNOT_ENABLE_WRITES');
 const writes=!presentation&&finalProof&&process.argv.includes('--authorize-final-eur1');
 if(!presentation){process.loadEnvFile(resolve('.env'));if(!process.env.DUEGATE_SANDBOX_BENEFICIARY_ID)throw new Error('SANDBOX_BENEFICIARY_CONFIGURATION_REQUIRED');}
-const service=presentation?new PresentationService(resolve('.presentation-state')):new DemoService(new (await import('../src/airwallex-sandbox.mts')).AirwallexSandbox(resolve('.env'),{financialWritesEnabled:writes}),resolve(finalProof?'.demo-final-proof':'.demo-state'),undefined,{finalProof,financialWritesEnabled:writes,beneficiaryId:process.env.DUEGATE_SANDBOX_BENEFICIARY_ID});
+const claude=process.argv.includes('--claude');
+if(claude&&!presentation)throw new Error('CLAUDE_DEMO_REQUIRES_NO_WRITE_PRESENTATION');
+let interpretation;
+if(claude){if(existsSync(resolve('.env')))process.loadEnvFile(resolve('.env'));const interpreter=new ClaudeFundingInterpreter({apiKey:process.env.ANTHROPIC_API_KEY,model:process.env.ANTHROPIC_MODEL});interpretation={provider:'claude' as const,interpreter,model:/^claude-[a-zA-Z0-9._-]{1,90}$/.test(interpreter.model)?interpreter.model:'INVALID'};}
+const service=presentation?new PresentationService(resolve(claude?'.presentation-claude-state':'.presentation-state'),'fixtures/recorded-proof.json',interpretation):new DemoService(new (await import('../src/airwallex-sandbox.mts')).AirwallexSandbox(resolve('.env'),{financialWritesEnabled:writes}),resolve(finalProof?'.demo-final-proof':'.demo-state'),undefined,{finalProof,financialWritesEnabled:writes,beneficiaryId:process.env.DUEGATE_SANDBOX_BENEFICIARY_ID});
 const assets:Record<string,[string,string]>={'/':['index.html','text/html'],'/styles.css':['styles.css','text/css'],'/app.mjs':['app.mjs','text/javascript'],'/view.mjs':['view.mjs','text/javascript'],'/types.mjs':['types.mjs','text/javascript']};
 createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');

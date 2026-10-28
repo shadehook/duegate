@@ -1,3 +1,4 @@
+import {safeDiagnostic} from '../src/funding-diagnostics.mts';
 import {existsSync,readFileSync,writeFileSync,mkdirSync,openSync,closeSync,fsyncSync,renameSync} from 'node:fs';
 import {join} from 'node:path';
 import {decide,logicalExecutionKey} from '../src/decision-engine.mts';
@@ -7,7 +8,9 @@ import {major} from '../src/airwallex-adapter.mts';
 import {ExecutionController,digest,deserialize,serialize} from '../src/execution-controller.mts';
 import type {Evaluation,PreparedExecution} from '../src/execution-controller.mts';
 import {ExecutionLedger} from '../src/execution-ledger.mts';
-import {deterministicFundingV2,applyFundingV2} from '../src/funding-v2.mts';
+import type {InterpretationAdapter} from '../src/claude-funding-interpreter.mts';
+import {REVIEW_MESSAGE} from '../src/claude-funding-interpreter.mts';
+import {validateCandidate,wireCandidate,deterministicFundingV2,applyFundingV2} from '../src/funding-v2.mts';
 import type {FundingUpdateV2} from '../src/funding-v2.mts';
 import type {CaseView} from '../web/types.mts';
 import {ApprovalStore,intentFingerprint} from '../src/approval-store.mts';
@@ -19,7 +22,7 @@ const STORY_CLOCK='2026-10-07T12:00:00.000Z',TIMEZONE='America/New_York';
 const money=(n:bigint)=>n<0n?'-'+major(-n):major(n);
 export const FINAL_PAYABLE='duegate-shortlist-final-eur001-v1';
 export class DemoService {
-  private beneficiaryId:string;private payableId:string;private finalProof:boolean;private writesEnabled:boolean;
+  private claudeStory:boolean;private interpretation:InterpretationAdapter;private beneficiaryId:string;private payableId:string;private finalProof:boolean;private writesEnabled:boolean;
   private adapter:AirwallexAdapter;private ledger:ExecutionLedger;private controller:ExecutionController;
   private dir:string;private clock:()=>string;private input:DecisionInput|null=null;private mode:'dry'|'sandbox'='dry';
   private connected=false;private asOf:string|null=null;private error:string|null=null;private facts:FundingUpdateV2|null=null;private raw:string|null=null;
@@ -27,8 +30,8 @@ export class DemoService {
   private receipts:string[]=[];private events:CaseView['audit']=[];private result:CaseView['result']=null;
   private writes=0;private conversions=0;private transfers=0;
   private approvals:ApprovalStore;
-  constructor(adapter:AirwallexAdapter,directory:string,clock=()=>new Date().toISOString(),options:{finalProof?:boolean;financialWritesEnabled?:boolean;beneficiaryId?:string}={}){
-    this.beneficiaryId=options.beneficiaryId??DEMO_BENEFICIARY;this.finalProof=options.finalProof===true;this.payableId=this.finalProof?FINAL_PAYABLE:SANDBOX_PAYABLE;this.writesEnabled=options.financialWritesEnabled??!this.finalProof;
+  constructor(adapter:AirwallexAdapter,directory:string,clock=()=>new Date().toISOString(),options:{finalProof?:boolean;financialWritesEnabled?:boolean;beneficiaryId?:string;interpretation?:InterpretationAdapter;claudeStory?:boolean}={}){
+    this.claudeStory=options.claudeStory===true;this.interpretation=options.interpretation??{interpreter:deterministicFundingV2,provider:'deterministic'};this.beneficiaryId=options.beneficiaryId??DEMO_BENEFICIARY;this.finalProof=options.finalProof===true;this.payableId=this.finalProof?FINAL_PAYABLE:SANDBOX_PAYABLE;this.writesEnabled=options.financialWritesEnabled??!this.finalProof;
     this.adapter=adapter;this.dir=directory;this.clock=clock;mkdirSync(directory,{recursive:true});
     this.ledger=new ExecutionLedger(join(directory,'ledger'));this.controller=new ExecutionController(adapter,this.ledger,clock);
     this.approvals=new ApprovalStore(join(directory,'approvals'),clock);
@@ -50,7 +53,7 @@ export class DemoService {
     const now=live||this.finalProof?this.clock():STORY_CLOCK,at=(mins:number)=>new Date(Date.parse(now)+mins*60000).toISOString();
     const reserve=live||this.finalProof?10000n:2500000n,free=live?500n:this.finalProof?100n:800000n;
     if(balance<reserve+free)throw new Error('BALANCE_TOO_SMALL_FOR_SCENARIO');
-    let due=at(120),cutoff=at(60);
+    let due=this.claudeStory?'2026-10-09T20:00:00.000Z':at(120),cutoff=this.claudeStory?'2026-10-09T16:00:00.000Z':at(60);
     if(live&&existsSync(join(this.dir,'synthetic-reschedule.json'))){
       const schedule=JSON.parse(readFileSync(join(this.dir,'synthetic-reschedule.json'),'utf8'));
       if(schedule.payable_id!==this.payableId||schedule.event!=='SYNTHETIC_PAYABLE_RESCHEDULED'||!schedule.synthetic_demo_only||!Number.isFinite(Date.parse(schedule.new_due_at))||!Number.isFinite(Date.parse(schedule.new_latest_safe_execution_at))||Date.parse(schedule.new_due_at)<=Date.parse(schedule.new_latest_safe_execution_at))throw new Error('INVALID_SYNTHETIC_SCHEDULE');
@@ -58,12 +61,12 @@ export class DemoService {
     }
     if(this.finalProof){
       const path=join(this.dir,'final-case.json');
-      if(!existsSync(path)){const schedule={payable_id:this.payableId,due_at:due,latest_safe_execution_at:cutoff,expected_inflow_eta:at(30)};const fd=openSync(path,'wx');try{writeFileSync(fd,JSON.stringify(schedule));fsyncSync(fd);}finally{closeSync(fd);}this.audit('SYNTHETIC_CASE_CREATED','One fixed EUR 1.00 final-proof payable; no execution authorized',{payable:schedule});}
+      if(!existsSync(path)){const schedule={payable_id:this.payableId,due_at:due,latest_safe_execution_at:cutoff,expected_inflow_eta:this.claudeStory?'2026-10-08T13:00:00.000Z':at(30)};const fd=openSync(path,'wx');try{writeFileSync(fd,JSON.stringify(schedule));fsyncSync(fd);}finally{closeSync(fd);}this.audit('SYNTHETIC_CASE_CREATED','One fixed EUR 1.00 final-proof payable; no execution authorized',{payable:schedule});}
       const fixed=JSON.parse(readFileSync(path,'utf8'));if(fixed.payable_id!==this.payableId)throw new Error('CASE_IDENTITY_MISMATCH');due=fixed.due_at;cutoff=fixed.latest_safe_execution_at;
     }
     return {payable:{payable_id:live||this.finalProof?this.payableId:'duegate-visual-dg001',supplier_id:'demo-supplier',beneficiary_id:this.beneficiaryId,amount:live||this.finalProof?100n:1000000n,currency:'EUR',
       due_at:live||this.finalProof?due:'2026-10-09T20:00:00.000Z',latest_safe_execution_at:live||this.finalProof?cutoff:'2026-10-09T16:00:00.000Z',status:'open'},
-      treasury:{source_currency:'USD',wallet_balance:balance,fixed_reserve:reserve,committed_amount:balance-reserve-free,expected_inflow_id:'INFLOW-001',expected_inflow_amount:live||this.finalProof?200n:400000n,
+      treasury:{source_currency:'USD',wallet_balance:balance,fixed_reserve:reserve,committed_amount:balance-reserve-free,expected_inflow_id:'INFLOW-001',expected_inflow_amount:this.claudeStory?400000n:live||this.finalProof?200n:400000n,
         expected_inflow_eta:this.finalProof?JSON.parse(readFileSync(join(this.dir,'final-case.json'),'utf8')).expected_inflow_eta:live?at(30):'2026-10-08T13:00:00.000Z',expected_inflow_status:'confirmed'},
       funding:{source_currency:'USD',required_amount:live||this.finalProof?200n:1150000n},fx_policy:{source_currency:'USD',target_currency:'EUR',max_acceptable_rate:{numerator:150n,denominator:100n},quote_expiry:null},
       quote:null,execution:{state:'no_execution',transfer_id:null},now};
@@ -81,12 +84,21 @@ export class DemoService {
       }else if(name==='interpret'){
         if(this.mode!=='dry'||!this.input||typeof body.text!=='string'||body.text.length>3000)throw new Error('INVALID_UPDATE');
         this.facts=null;this.raw=null;this.review=false;
-        const result=deterministicFundingV2.interpret(body.text,this.known(),this.finalProof?this.input.now:STORY_CLOCK,TIMEZONE);
+        let result:FundingUpdateV2;
+        const reference=this.finalProof?this.input.now:STORY_CLOCK;
+        const providerLabel=this.interpretation.provider+(this.interpretation.model?' · '+this.interpretation.model:'');
+        this.audit('INTERPRETATION_STARTED',providerLabel);
+        const started=Date.now();
+        try{const candidate=await this.interpretation.interpreter.interpret(body.text,this.known(),reference,TIMEZONE);result=validateCandidate(wireCandidate(candidate),body.text,this.known(),reference,TIMEZONE);}
+        catch(error){this.review=true;this.error=REVIEW_MESSAGE;this.audit('INTERPRETATION_REVIEW_REQUIRED',providerLabel+' · validation failed · '+(Date.now()-started)+' ms',safeDiagnostic(error));return this.view();}
+        this.audit('INTERPRETATION_COMPLETED',providerLabel+' · validated · '+(Date.now()-started)+' ms');
+        if(result.classification==='AMBIGUOUS'){this.review=true;this.error=REVIEW_MESSAGE;}
         this.facts=result;this.raw=body.text;this.audit('FUNDING_UPDATE_RECEIVED','SHA-256 '+result.source_text_hash,{source_text_hash:result.source_text_hash,parser_version:result.parser_version});this.audit('FUNDING_FACTS_EXTRACTED',`${result.classification} · ${result.eta_precision} · ${result.expected_inflow_id??'unidentified'}`,result);
       }else if(name==='apply'){
         if(this.mode!=='dry'||!this.input||!this.facts||this.raw===null)throw new Error('NO_TYPED_UPDATE');
         const before=decide(this.input).decision;
         const applied=applyFundingV2(this.input.treasury,this.facts,this.raw,this.known(),this.finalProof?this.input.now:STORY_CLOCK,TIMEZONE,this.receipts);
+        if(applied.diagnostic)this.audit('FUNDING_APPLICATION_REJECTED',applied.diagnostic.diagnostic_code,applied.diagnostic);
         this.review=applied.review_required;this.input={...this.input,treasury:applied.state};if(applied.outcome==='APPLIED')this.receipts.push(applied.receipt);
         const after=decide(this.input);this.review ||= after.reason==='INFLOW_ETA_UNCERTAIN';this.transition=`${before} → ${after.decision}`;
         this.audit(applied.outcome==='APPLIED'?'EXPECTED_INFLOW_UPDATED':'FUNDING_UPDATE_'+applied.outcome,`${this.facts.classification} · ${this.facts.new_eta_date??this.facts.new_eta_exact??'no date'}`);
@@ -194,7 +206,7 @@ export class DemoService {
       observedResult={conversionId:conversion.conversion_id,conversionStatus:conversion.status??'UNVERIFIED',transferId:transfer.transfer_id,transferStatus:this.ledger.observedTransferStatus(this.payableId)??'UNVERIFIED',usdBefore:'—',usdAfter:'—',eurBefore:'—',eurAfter:'—'};
     }
     if(observedResult)observedResult={...observedResult,transferStatus:this.ledger.observedTransferStatus(this.payableId)??observedResult.transferStatus};
-    return {connectionLabel:this.connected?'Airwallex sandbox: Connected':observedResult?'Airwallex proof: Recorded · live connection not checked':'Airwallex sandbox: Not checked',approvalReason:approval?.status==='INVALIDATED'?'Approval no longer matches current execution context. A new quote/context requires new approval.':undefined,finalProof:this.finalProof,financialWritesEnabled:this.writesEnabled,quoteLimit:'Maximum 1.50 USD per EUR; source budget USD '+safe(input?.funding.required_amount),fundingExample:this.finalProof&&p?'INFLOW-001 delayed until '+new Date(Date.parse(p.latest_safe_execution_at)+3600000).toISOString():'The $4,000 customer payment expected Thursday has been delayed until Monday.',mode:this.mode,caseId:'Supplier Payment DG-001',payableId:live||this.finalProof?this.payableId:'duegate-visual-dg001',supplier:'Nordlicht Supply · demo',amount:live||this.finalProof?'1.00':'10000.00',
+    return {interpreterProvider:this.interpretation.provider,connectionLabel:this.connected?'Airwallex sandbox: Connected':observedResult?'Airwallex proof: Recorded · live connection not checked':'Airwallex sandbox: Not checked',approvalReason:approval?.status==='INVALIDATED'?'Approval no longer matches current execution context. A new quote/context requires new approval.':undefined,finalProof:this.finalProof,financialWritesEnabled:this.writesEnabled,quoteLimit:'Maximum 1.50 USD per EUR; source budget USD '+safe(input?.funding.required_amount),fundingExample:this.claudeStory?'The $4,000 customer payment expected Thursday has been delayed until Monday.':this.finalProof&&p?'INFLOW-001 delayed until '+new Date(Date.parse(p.latest_safe_execution_at)+3600000).toISOString():'The $4,000 customer payment expected Thursday has been delayed until Monday.',mode:this.mode,caseId:'Supplier Payment DG-001',payableId:live||this.finalProof?this.payableId:'duegate-visual-dg001',supplier:'Nordlicht Supply · demo',amount:live||this.finalProof?'1.00':'10000.00',
       due:p?.due_at??'2026-10-09T20:00:00.000Z',cutoff:p?.latest_safe_execution_at??'2026-10-09T16:00:00.000Z',clock:live||this.finalProof?this.clock():STORY_CLOCK,source:'USD',target:'EUR',beneficiary:'Known sandbox DE / EUR · …'+(p?.beneficiary_id??this.beneficiaryId).slice(-8),
       connected:this.connected,balanceAsOf:this.asOf,treasury:{balance:safe(t?.wallet_balance),reserve:safe(t?.fixed_reserve),committed:safe(t?.committed_amount),free:input?money(free):'—',required:safe(input?.funding.required_amount),inflow:safe(t?.expected_inflow_amount),eta:t?.expected_inflow_eta_window?`${t.expected_inflow_eta_window.date??'Window'} · ${t.expected_inflow_eta_window.timezone}`:t?.expected_inflow_eta??'—'},
       decision,reason:persisted==='FAILED_REVIEW_REQUIRED'?'TRANSFER_REVIEW_REQUIRED':blocked?'EXISTING_EXECUTION':d?.reason??'BALANCE_UNAVAILABLE',transition:this.transition,
