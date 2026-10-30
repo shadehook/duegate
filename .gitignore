@@ -36,3 +36,20 @@ __pycache__/
 
 .presentation-claude-state/
 !/docs/claude-integration.md
+
+.presentation-runs/
+
+# Local recording and browser-automation outputs
+/recordings/
+/recording-output/
+/screenshots/
+/playwright-report/
+/test-results/
+/.playwright/
+/.browser-profile/
+*.mp4
+*.webm
+*.mov
+*.wav
+*.mp3
+*.m4a

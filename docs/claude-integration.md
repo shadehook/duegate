@@ -56,7 +56,7 @@ npm run demo:presentation remains offline and requires no credentials. The two m
 
 ## Tests and diagnostics
 
-318 tests pass; strict typecheck, frontend build and secret scan pass. Fixtures claude-success.json and claude-thinking-success.json are synthetic expected shapes, not raw live responses. They prove parsing, normalization, temporal windows and deterministic ESCALATE. Tests also cover failure modes, unchanged state on rejection, opaque thinking, injection, UI/audit privacy and zero-write restart protection. No live API request runs in npm test.
+319 tests pass; strict typecheck, frontend build and secret scan pass. Fixtures claude-success.json and claude-thinking-success.json are synthetic expected shapes, not raw live responses. They prove parsing, normalization, temporal windows and deterministic ESCALATE. Tests also cover failure modes, unchanged state on rejection, opaque thinking, injection, UI/audit privacy and zero-write restart protection. No live API request runs in npm test.
 
 | Stage | Codes |
 | --- | --- |

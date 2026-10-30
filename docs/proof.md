@@ -15,7 +15,7 @@ Public fixtures/recorded-proof.json contains only selected numerical/status evid
 
 ## Reproducible offline checks
 
-Run npm test, npm run typecheck and npm run build. Verified: 318 tests passed, 0 failed; strict typecheck PASS; frontend build PASS. Mock integration tests cover guards, approval invalidation, payload mutation, failure states and durable duplicate protection. Presentation tests exercise the full recorded sequence and restart with zero provider writes.
+Run npm test, npm run typecheck and npm run build. Verified: 319 tests passed, 0 failed; strict typecheck PASS; frontend build PASS. Mock integration tests cover guards, approval invalidation, payload mutation, failure states and durable duplicate protection. Presentation tests exercise the full recorded sequence and restart with zero provider writes.
 
 Presentation uses a separate recorded adapter and fixed clock. It cannot create a conversion or transfer, even after human approval. Its visible results are historical evidence, not fresh provider status. The offline mode needs no model provider. Live Claude interpretation is implemented and verified separately: HTTP 200, validated USD 4,000 delayed-inflow facts, date uncertainty preserved, and deterministic ESCALATE / INFLOW_TOO_LATE. See [Claude verification](claude-integration.md).
 

@@ -16,7 +16,12 @@ const claude=process.argv.includes('--claude');
 if(claude&&!presentation)throw new Error('CLAUDE_DEMO_REQUIRES_NO_WRITE_PRESENTATION');
 let interpretation;
 if(claude){if(existsSync(resolve('.env')))process.loadEnvFile(resolve('.env'));const interpreter=new ClaudeFundingInterpreter({apiKey:process.env.ANTHROPIC_API_KEY,model:process.env.ANTHROPIC_MODEL});interpretation={provider:'claude' as const,interpreter,model:/^claude-[a-zA-Z0-9._-]{1,90}$/.test(interpreter.model)?interpreter.model:'INVALID'};}
-const service=presentation?new PresentationService(resolve(claude?'.presentation-claude-state':'.presentation-state'),'fixtures/recorded-proof.json',interpretation):new DemoService(new (await import('../src/airwallex-sandbox.mts')).AirwallexSandbox(resolve('.env'),{financialWritesEnabled:writes}),resolve(finalProof?'.demo-final-proof':'.demo-state'),undefined,{finalProof,financialWritesEnabled:writes,beneficiaryId:process.env.DUEGATE_SANDBOX_BENEFICIARY_ID});
+// Named takes isolate presentation evidence without deleting or altering an existing run.
+const runArg=process.argv.find(arg=>arg.startsWith('--presentation-run='));
+const run=runArg?.slice('--presentation-run='.length);
+if(runArg&&(!presentation||claude||!run||!/^\w[\w-]{0,63}$/.test(run)))throw new Error('INVALID_OFFLINE_PRESENTATION_RUN');
+const presentationDirectory=run?resolve('.presentation-runs',run):resolve(claude?'.presentation-claude-state':'.presentation-state');
+const service=presentation?new PresentationService(presentationDirectory,'fixtures/recorded-proof.json',interpretation):new DemoService(new (await import('../src/airwallex-sandbox.mts')).AirwallexSandbox(resolve('.env'),{financialWritesEnabled:writes}),resolve(finalProof?'.demo-final-proof':'.demo-state'),undefined,{finalProof,financialWritesEnabled:writes,beneficiaryId:process.env.DUEGATE_SANDBOX_BENEFICIARY_ID});
 const assets:Record<string,[string,string]>={'/':['index.html','text/html'],'/styles.css':['styles.css','text/css'],'/app.mjs':['app.mjs','text/javascript'],'/view.mjs':['view.mjs','text/javascript'],'/types.mjs':['types.mjs','text/javascript']};
 createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
