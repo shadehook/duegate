@@ -1,4 +1,5 @@
 export interface CaseView {
+  accountingCheck?:AccountingCheckView;
   interpreterProvider?:'claude'|'deterministic';
   fundingPreviousEta?:string;
   presentationMode?:boolean;recordedAttached?:boolean;connectionLabel?:string;approvalReason?:string;recordedFunding?:string;recordedFee?:string;
@@ -15,4 +16,12 @@ export interface CaseView {
   result:null|{conversionId:string;conversionStatus:string;transferId:string;transferStatus:string;usdBefore:string;usdAfter:string;eurBefore:string;eurAfter:string};
   executionState:string;financialWrites:number|null;conversionCount:number;transferCount:number;error:string|null;
   audit:{at:string;event:string;detail:string}[];
+}
+/** Sanitized read model; contains no provider IDs, credentials or execution input. */
+export interface AccountingCheckView {
+  source:'t0';evidenceMode:'recorded'|'live';reference:string;amount:string;currency:'USD';
+  accountingStatus:'open'|'voided'|'drafted'|'paid';dueDate:string|null;paidDate:string|null;
+  capturedAt:string;sourceAsOf:string|null;
+  decision:'BLOCK_DUPLICATE'|'NOT_EVALUATED';reason:'EXECUTION_BLOCKED'|'ACCOUNTING_STATUS_NOT_PAID';
+  canExecute:false;fxQuoteRequests:0;conversionRequests:0;transferRequests:0;
 }

@@ -1,0 +1,19 @@
+{
+  "source": "t0",
+  "entityId": "recorded-t0-sandbox",
+  "recordType": "VendorBill",
+  "recordId": "recorded-bill-57c3e6aecd",
+  "vendorId": "recorded-vendor-70c456a0d0",
+  "amountMinor": "499813",
+  "currency": "USD",
+  "status": "paid",
+  "dueDate": "2026-10-20",
+  "paidDate": "2026-10-26",
+  "sourceAsOf": null,
+  "capturedAt": "2026-10-31T01:27:29.800Z",
+  "sourceRefs": [
+    "t0:entity:recorded-t0-sandbox",
+    "t0:VendorBill:recorded-bill-57c3e6aecd",
+    "t0:Vendor:recorded-vendor-70c456a0d0"
+  ]
+}

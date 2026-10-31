@@ -6,6 +6,8 @@ import {ApprovalStore} from '../src/approval-store.mts';
 import type {AirwallexAdapter,QuotedFx,WalletBalance} from '../src/airwallex-adapter.mts';
 import type {CaseView} from '../web/types.mts';
 import {major} from '../src/airwallex-adapter.mts';
+import {recordedAccountingCheck} from '../src/accounting-context.mts';
+import type {AccountingCheckResult} from '../src/accounting-context.mts';
 interface RecordedSummary {quote:QuotedFx;counts:{conversions:number;transfers:number};before:{currency:string;available:string;pending:string;total:string}[];after:{currency:string;available:string;pending:string;total:string}[];conversion:{id:string;status:string};transfer:{id:string;status:string;fee_amount:string;fee_currency:string};funding_status:string}
 /** Offline data adapter. Every money-moving operation throws; no HTTP or credentials. */
 export class RecordedAdapter implements AirwallexAdapter {
@@ -21,9 +23,14 @@ export class RecordedAdapter implements AirwallexAdapter {
   async getTransfer():Promise<never>{throw new Error('USE_RECORDED_EVIDENCE');}
 }
 export class PresentationService {
+  private accountingCheck:AccountingCheckResult|undefined;
   readonly adapter:RecordedAdapter;private demo:DemoService;private dir:string;private summary:RecordedSummary;private attached=false;private events:{at:string;event:string;detail:string}[]=[];
   private clock=()=> '2026-10-27T17:48:00.000Z';
-  constructor(directory:string,evidencePath='fixtures/recorded-proof.json',interpretation?:InterpretationAdapter){
+  constructor(directory:string,evidencePath='fixtures/recorded-proof.json',interpretation?:InterpretationAdapter,options:{accountingEvidencePath?:string}={}){
+    if(options.accountingEvidencePath){
+      if(interpretation?.provider==='claude')throw new Error('ACCOUNTING_PRESENTATION_REQUIRES_OFFLINE_MODE');
+      this.accountingCheck=recordedAccountingCheck(JSON.parse(readFileSync(options.accountingEvidencePath,'utf8')));
+    }
     if(interpretation?.provider==='claude')this.clock=()=> '2026-10-07T12:00:00.000Z';
     this.dir=directory;mkdirSync(directory,{recursive:true});this.summary=JSON.parse(readFileSync(evidencePath,'utf8'));
     if(this.summary.counts.conversions!==1||this.summary.counts.transfers!==1)throw new Error('RECORDED_PROOF_COUNTS_INVALID');
@@ -52,7 +59,7 @@ export class PresentationService {
   view():CaseView{
     const v=this.demo.view();let result=v.result;
     if(this.attached){const value=(rows:RecordedSummary['before'],c:string)=>major(BigInt(rows.find(x=>x.currency===c)!.available));result={conversionId:this.summary.conversion.id,conversionStatus:this.summary.conversion.status,transferId:this.summary.transfer.id,transferStatus:this.summary.transfer.status,usdBefore:value(this.summary.before,'USD'),usdAfter:value(this.summary.after,'USD'),eurBefore:value(this.summary.before,'EUR'),eurAfter:value(this.summary.after,'EUR')};}
-    return {...v,presentationMode:true,recordedAttached:this.attached,connected:false,connectionLabel:'Airwallex sandbox proof · Recorded',financialWritesEnabled:false,financialWrites:0,canExecute:false,canApprove:!this.attached&&v.canApprove,canApply:!this.attached&&v.canApply,decision:this.attached?'BLOCK_DUPLICATE':v.decision,reason:this.attached?'RECORDED_EXECUTION_ALREADY_EXISTS':v.reason,executionState:this.attached?'RECORDED_TRANSFER_ATTACHED':v.executionState,result,conversionCount:this.attached?1:0,transferCount:this.attached?1:0,recordedFunding:this.attached?this.summary.funding_status:undefined,recordedFee:this.attached?this.summary.transfer.fee_currency+' '+major(BigInt(this.summary.transfer.fee_amount)):undefined,approvalReason:v.approval?.status==='INVALIDATED'?'Approval invalidated: FX quote changed. New context requires new human approval.':undefined,audit:[...v.audit.map(a=>({...a,detail:a.detail.replace('real USD wallet snapshot','recorded USD wallet snapshot').replace('real balance retained','recorded balance retained')})),...this.events]};
+    return {...v,...(this.accountingCheck?{accountingCheck:this.accountingCheck}:{}),presentationMode:true,recordedAttached:this.attached,connected:false,connectionLabel:'Airwallex sandbox proof · Recorded',financialWritesEnabled:false,financialWrites:0,canExecute:false,canApprove:!this.attached&&v.canApprove,canApply:!this.attached&&v.canApply,decision:this.attached?'BLOCK_DUPLICATE':v.decision,reason:this.attached?'RECORDED_EXECUTION_ALREADY_EXISTS':v.reason,executionState:this.attached?'RECORDED_TRANSFER_ATTACHED':v.executionState,result,conversionCount:this.attached?1:0,transferCount:this.attached?1:0,recordedFunding:this.attached?this.summary.funding_status:undefined,recordedFee:this.attached?this.summary.transfer.fee_currency+' '+major(BigInt(this.summary.transfer.fee_amount)):undefined,approvalReason:v.approval?.status==='INVALIDATED'?'Approval invalidated: FX quote changed. New context requires new human approval.':undefined,audit:[...v.audit.map(a=>({...a,detail:a.detail.replace('real USD wallet snapshot','recorded USD wallet snapshot').replace('real balance retained','recorded balance retained')})),...this.events]};
   }
-  exportAudit(){return {schema_version:'duegate-presentation-v1',mode:'NO_WRITE_RECORDED_PROOF',new_financial_writes:0,current_interaction:this.demo.exportAudit(),presentation_events:this.events,recorded_proof_source:'docs/proof.md',recorded_execution:this.attached?this.summary:null};}
+  exportAudit(){return {schema_version:'duegate-presentation-v1',mode:'NO_WRITE_RECORDED_PROOF',new_financial_writes:0,current_interaction:this.demo.exportAudit(),presentation_events:this.events,recorded_proof_source:'docs/proof.md',recorded_execution:this.attached?this.summary:null,...(this.accountingCheck?{accounting_check:this.accountingCheck}:{})};}
 }

@@ -107,7 +107,7 @@ They are summaries, not independently verifiable provider receipts. [Proof](docs
 TypeScript, Node.js, plain HTML/CSS/TypeScript frontend, Node's built-in test runner
 and local filesystem persistence.
 
-**319 tests passed · 0 failed.** Strict TypeScript typecheck, frontend build, secret
+**394 tests passed · 0 failed.** Strict TypeScript typecheck, frontend build, secret
 scan and live Claude interpretation: **PASS**. Historical Airwallex proof preserved;
 zero new conversions or transfers during Claude integration.
 

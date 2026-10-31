@@ -36,6 +36,16 @@ PresentationService uses a recorded adapter, isolated local state and a fixed cl
 
 Audit records explain decisions and transitions. Funding diagnostics retain only code-owned reasons, field paths and bounded response metadata, never raw thinking, provider output, input prose or credentials. Raw message text is held temporarily for validation rather than persisted.
 
+## Optional T:0 accounting check
+
+`src/t0-accounting-adapter.mts` is a server-only read client for one explicitly configured supplier bill. It allows only GET `/v1/entities`, `/v1/vendor-bills/{external_id}` and `/v1/vendors/{external_id}` at `https://api.t0.ai`, with bearer authentication from a caller-supplied `T0_API_KEY`. It has no arbitrary URL, listing or write method and makes no retries. These exact-record routes require no pagination. Entity membership and returned record identities must match the configured binding. Bounded response bodies, request/body timeouts and code-owned errors prevent provider prose or credentials from entering logs or UI.
+
+`src/accounting-context.mts` validates the normalized identity, provenance, USD amount, status and dates. Numeric total tokens are preserved before JSON number rounding and converted to integer cents without rounding. Date-only due/paid dates remain date-only. The single-record endpoint does not supply `as_of`; capture time is not a source freshness guarantee. Record reads can lag a nightly export, unlike GL reports. See [T:0 API](https://docs.t0.ai/api/t0-api) and [supplier bill lookup](https://docs.t0.ai/api/t0-api/get/v1/vendor-bills/external_id).
+
+Only the explicitly bound paid obligation is passed to an isolated evaluation of the existing engine. Its existing `payable.status === "paid"` rule yields `BLOCK_DUPLICATE / EXECUTION_BLOCKED`. The evaluation has a code-owned, permanently closed cutoff, zero synthetic funding and an explicitly unmapped beneficiary; none is inferred from accounting dates or treated as current wallet data. This input and its execution key never leave the accounting function. Non-paid records return `NOT_EVALUATED`, never execution permission. The function has no provider, approval or ledger capabilities; it cannot attach transfer IDs, replace wallet cash or create an execution claim.
+
+The optional `--t0-recorded` panel is a separate USD 4,998.13 accounting check. It is not the EUR payable. It reads only `fixtures/t0-paid-bill.json`, which records sanitized facts observed on 2026-10-31: paid status, due date 2026-10-20, paid date 2026-10-26 and a verified vendor link. It is restricted to offline presentation, exposes only a hashed reference, and does not alter the EUR story or its audit history. Its safe result is included separately in the optional audit export. There is no live T:0 browser action; live adapter verification is server-side only.
+
 ## Trust boundaries and limits
 
 The LLM cannot approve payments, select beneficiaries, change policy or decide whether money moves. Schema validation does not prove every financial assertion is true; unknown/ambiguous context still needs human review. Broader live-language evaluation remains future validation work.
