@@ -1,9 +1,12 @@
 # DueGate
 
-**Context-bound execution control for cross-border payments.**
+DueGate is a context-bound execution-governance layer for cross-border payments.
 
-DueGate prevents an approved cross-border payment from executing after the conditions
-that justified the approval have changed.
+Approval is not permanent. DueGate only executes while the conditions behind that
+approval are still valid.
+
+DueGate binds payment approval to explicit financial evidence and rechecks that
+evidence at the execution boundary it controls.
 
 Built for the Airwallex Agentic Banking Hackathon.
 Hackathon prototype / sandbox validated. **Not production ready.**
@@ -30,6 +33,11 @@ may pass, details may change—or execution may already have been attempted.
 Payment obligation → current financial context → **DueGate decision** → exact human
 approval → Airwallex execution → audit evidence.
 
+- **T:0:** read-only accounting / financial context.
+- **DueGate:** deterministic execution-governance layer.
+- **Airwallex:** spendable balance, FX and execution rail.
+- **Claude:** interpretation only, never financial authority.
+
 Claude can supply typed context from unstructured updates. It is not required for
 DueGate's deterministic controls.
 
@@ -48,6 +56,32 @@ conversion, transfer validation/creation and status reads.
 
 Writes are disabled by default. A persistent ledger prevents duplicate execution
 across restart; failed or ambiguous submissions are never blindly retried.
+
+## T:0 accounting context
+
+**Paid-obligation safeguard.** A validated, bound T:0 bill marked PAID produces
+BLOCK_DUPLICATE, with no FX quote, conversion or transfer request for that check.
+The recorded USD bill is a separate obligation from the EUR demo payable.
+
+**Financial-statement context.** An opted-in approval can bind balance-sheet bank
+cash and cash-flow net change, together with entity, currency and report period.
+Matching context only supports the existing decision; it cannot independently
+authorize EXECUTE. Protected context is checked again at approval and execution.
+
+| Statement check | DueGate result |
+| --- | --- |
+| Protected context changed | ESCALATE / FINANCIAL_CONTEXT_CHANGED |
+| Required context incomplete | ESCALATE / FINANCIAL_CONTEXT_INCOMPLETE |
+| Decision date outside report period | ESCALATE / FINANCIAL_CONTEXT_OUT_OF_PERIOD |
+
+T:0 financial statements are generated from the GL at request time. DueGate records
+the report period and local capture time; it does not invent a statement-level
+`as_of` field. The two report reads are separate observations, not an atomic
+cross-system snapshot. Accounting cash does not replace wallet balance.
+
+T:0 supplies read-only accounting context. DueGate determines whether that context
+remains acceptable for execution. Airwallex remains the source of spendable balance
+and the execution rail. [Scope and validation details](docs/architecture.md).
 
 ## Demonstrated controls
 
@@ -91,6 +125,8 @@ clock. **No financial writes.**
 **The EUR 10,000 narrative obligation was NOT executed.** The recorded historical
 proof concerns a separate **EUR 1.00 synthetic Airwallex sandbox transfer**.
 
+With `--t0-recorded`, the [offline walkthrough](docs/demo.md#statement-period-recheck) also shows how an expired accounting statement blocks a separate approval example. T:0 supplies read-only accounting context. DueGate determines whether the context remains acceptable for execution. Airwallex remains the source of spendable balance and the execution rail.
+
 ## Historical sandbox proof
 
 - One final controlled USD → EUR conversion: **SETTLED**
@@ -107,7 +143,7 @@ They are summaries, not independently verifiable provider receipts. [Proof](docs
 TypeScript, Node.js, plain HTML/CSS/TypeScript frontend, Node's built-in test runner
 and local filesystem persistence.
 
-**394 tests passed · 0 failed.** Strict TypeScript typecheck, frontend build, secret
+**420 tests passed · 0 failed.** Strict TypeScript typecheck, frontend build, secret
 scan and live Claude interpretation: **PASS**. Historical Airwallex proof preserved;
 zero new conversions or transfers during Claude integration.
 
@@ -116,6 +152,8 @@ zero new conversions or transfers during Claude integration.
 Local files are not production-grade distributed coordination. Human operator
 identity is a demo label; production authentication, custody, permissions and
 hardening are not implemented. Broader live-model evaluation remains necessary.
+DueGate does not guarantee cancellation of an independently scheduled Airwallex
+transfer or claim to have invented approval revocation.
 **Not production ready.** Never erase a live ledger to retry a payment.
 
 ## Local / sandbox configuration

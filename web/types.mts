@@ -1,4 +1,6 @@
 export interface CaseView {
+  statementScene?:StatementScene;
+  statementTerms?:{start:string;end:string;cash:string;net:string};
   accountingCheck?:AccountingCheckView;
   interpreterProvider?:'claude'|'deterministic';
   fundingPreviousEta?:string;
@@ -16,6 +18,15 @@ export interface CaseView {
   result:null|{conversionId:string;conversionStatus:string;transferId:string;transferStatus:string;usdBefore:string;usdAfter:string;eurBefore:string;eurAfter:string};
   executionState:string;financialWrites:number|null;conversionCount:number;transferCount:number;error:string|null;
   audit:{at:string;event:string;detail:string}[];
+}
+interface StatementCheckView {
+  decisionDate:string;coversDecisionDate:boolean|null;decision:'ESCALATE'|null;
+  result:'FINANCIAL_CONTEXT_OK'|'FINANCIAL_CONTEXT_CHANGED'|'FINANCIAL_CONTEXT_INCOMPLETE'|'FINANCIAL_CONTEXT_OUT_OF_PERIOD';
+}
+export interface StatementScene {
+  mode:'recorded'; periodStart:string|null;periodEnd:string|null;capturedAt:string|null;currency:string|null;
+  cash:string|null;net:string|null;fingerprint:string;sourceRefs:readonly string[];
+  initial:StatementCheckView;later:StatementCheckView;
 }
 /** Sanitized read model; contains no provider IDs, credentials or execution input. */
 export interface AccountingCheckView {

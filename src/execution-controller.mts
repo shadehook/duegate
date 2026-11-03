@@ -5,6 +5,8 @@ import type { AirwallexAdapter, QuotedFx, ConversionPayload, TransferPayload, Wa
 import { major, AmbiguousTransferResponse } from './airwallex-adapter.mts';
 import { ExecutionLedger } from './execution-ledger.mts';
 import type {ExactAuthorization} from './approval-store.mts';
+import {requireStatements,StatementVeto} from './financial-statement-context.mts';
+import type {StatementReader,StatementSnapshot} from './financial-statement-context.mts';
 
 export function serialize(value: unknown): string {
   return JSON.stringify(value, (_k, v) => typeof v === 'bigint' ? { __duegate_bigint: v.toString() } : v);
@@ -21,8 +23,9 @@ export const providerId = (key: string, operation: string): string => {
   const h = bytes.toString('hex');
   return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 };
-export interface Evaluation { input: DecisionInput; decision: DecisionResult; quote: QuotedFx | null; raw_balance: WalletBalance }
+export interface Evaluation { input: DecisionInput; decision: DecisionResult; quote: QuotedFx | null; raw_balance: WalletBalance; statement?:StatementSnapshot;statementEvidence?:Awaited<ReturnType<typeof requireStatements>>['evidence'] }
 export interface PreparedExecution {
+  statement?:StatementSnapshot;
   decision: 'EXECUTE'; logical_execution_key: string; input: DecisionInput; quote: QuotedFx;
   conversion: ConversionPayload; transfer: TransferPayload; raw_balance: WalletBalance;
 }
@@ -34,7 +37,13 @@ export class ExecutionController {
   private readonly adapter: AirwallexAdapter;
   private readonly ledger: ExecutionLedger;
   private readonly clock: () => string;
-  constructor(adapter: AirwallexAdapter, ledger: ExecutionLedger, clock: () => string) { this.adapter = adapter; this.ledger = ledger; this.clock = clock; }
+  private readonly statements?:StatementReader;
+  constructor(adapter: AirwallexAdapter, ledger: ExecutionLedger, clock: () => string, statements?:StatementReader) { this.adapter = adapter; this.ledger = ledger; this.clock = clock; this.statements=statements; }
+  async recheckStatements(intent:{statement?:StatementSnapshot}):Promise<void>{
+    if(!this.statements && !('statement' in intent))return;
+    if(!intent.statement)throw new StatementVeto(); // No retroactive baseline for a legacy approval.
+    await requireStatements(this.statements,this.clock,intent.statement);
+  }
   private async sourceBalance(currency: string): Promise<WalletBalance> {
     const rows = (await this.adapter.getWalletBalances()).filter(b => b.currency === currency);
     if (rows.length !== 1 || rows[0].available < 0n) throw new Error('Ambiguous source cash balance');
@@ -48,16 +57,19 @@ export class ExecutionController {
     if (this.ledger.hasClaim(input.payable.payable_id)) input.execution.state = 'executing';
     let result = decide(input), quote: QuotedFx | null = null;
     // Engine asks for a quote only after duplicate/cutoff/cash gates pass.
+    let capture:Awaited<ReturnType<typeof requireStatements>>|undefined;
     if (result.reason === 'QUOTE_MISSING') {
+      if(this.statements)capture=await requireStatements(this.statements,this.clock);
       quote = await this.adapter.createFxQuote({ source_currency: input.treasury.source_currency, target_currency: input.payable.currency, target_amount: input.payable.amount });
       input.quote = quote; input.fx_policy.quote_expiry = quote.expires_at; input.now = this.clock();
       if (Date.parse(quote.valid_from_at) > Date.parse(input.now)) throw new Error('Quote not yet valid');
       result = decide(input);
     }
-    return { input, decision: result, quote, raw_balance: raw };
+    return { input, decision: result, quote, raw_balance: raw,...(capture?{statement:capture.snapshot,statementEvidence:capture.evidence}:{}) };
   }
   async prepare(evaluation: Evaluation, authorization?: ExactAuthorization): Promise<Preview> {
-    const { input, quote } = structuredClone(evaluation);
+    const bound=structuredClone(evaluation), { input, quote } = bound;
+    await this.recheckStatements(bound);
     const raw_balance = await this.sourceBalance(input.treasury.source_currency);
     input.treasury.wallet_balance = raw_balance.available;
     input.now = this.clock();
@@ -73,7 +85,7 @@ export class ExecutionController {
     await this.adapter.validateTransfer(transfer);
     input.now = this.clock();
     if (decide(input).decision !== 'EXECUTE') throw new Error('Preview expired during validation');
-    const prepared: PreparedExecution = { decision: 'EXECUTE', logical_execution_key: key, input, quote, conversion, transfer, raw_balance };
+    const prepared: PreparedExecution = { decision: 'EXECUTE', logical_execution_key: key, input, quote, conversion, transfer, raw_balance,...(bound.statement?{statement:bound.statement}:{}) };
     authorization?.check(prepared);
     const hash = digest(prepared);
     if (!this.ledger.claim(input, hash).accepted) throw new Error('Execution claim already exists');
@@ -85,6 +97,7 @@ export class ExecutionController {
    * Any started attempt is non-retriable here; reconcile it externally.
    */
   async executeApproved(preview: Preview, approvedDigest: string): Promise<TransferResult> {
+    if(this.statements||'statement' in preview.prepared)throw new Error('EXACT_HUMAN_APPROVAL_REQUIRED');
     if(preview.prepared.input.payable.payable_id!=='duegate-phase7-synthetic-eur-001')throw new Error('EXACT_HUMAN_APPROVAL_REQUIRED');
     const supplied = structuredClone(preview);
     if (digest(supplied.prepared) !== approvedDigest || supplied.digest !== approvedDigest) throw new Error('Approved payload mutated');
@@ -138,6 +151,8 @@ export class ExecutionController {
     const original = deserialize<PreparedExecution>(saved.body);
     if (digest(original) !== saved.digest || original.input.payable.payable_id !== payableId) throw new Error('Original payable mismatch');
     this.ledger.verifyOriginalClaim(original.input, saved.digest);
+    if((this.statements||'statement' in original)&&!authorization)throw new Error('EXACT_HUMAN_APPROVAL_REQUIRED');
+    await this.recheckStatements(original);
     authorization?.check(original);
     const p = structuredClone(original);
     const input = p.input;
@@ -172,6 +187,7 @@ export class ExecutionController {
     await this.adapter.validateTransfer(structuredClone(p.transfer));
     const immediate = await this.adapter.getWalletBalances();
     if (one(immediate, 'USD').available !== usd.available || one(immediate, 'EUR').available !== eur.available) throw new Error('Balances changed during preparation');
+    await this.recheckStatements(p);
     input.now = this.clock();
     const decision = decide(input); audit('EXECUTE_RECONFIRMED', { decision, input });
     if (decision.decision !== 'EXECUTE') throw new Error('Fresh quote gate blocked');
@@ -210,6 +226,8 @@ export class ExecutionController {
       const transferBalances=await this.adapter.getWalletBalances();
       if(one(transferBalances,'USD').available!==one(afterConversion,'USD').available || one(transferBalances,'EUR').available!==one(afterConversion,'EUR').available)throw new Error('Cash context changed before transfer');
       authorization?.check(p,true);
+      await this.recheckStatements(p);
+      authorization?.check(p,true);
       const sent = await this.adapter.createTransfer(structuredClone(p.transfer));
       this.ledger.attachTransfer(payableId, sent.id);
       audit('TRANSFER_CREATED', sent);
@@ -239,6 +257,7 @@ export class ExecutionController {
       }
       this.ledger.markReview(payableId);
       audit('EXECUTION_REVIEW_REQUIRED', { state: 'REVIEW', automatic_retry: false });
+      if(error instanceof StatementVeto)throw error;
       throw new Error('Execution stopped for review; preserve all IDs and do not retry financial writes');
     }
   }

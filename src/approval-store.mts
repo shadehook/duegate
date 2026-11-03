@@ -8,12 +8,12 @@ import type {Evaluation,PreparedExecution} from './execution-controller.mts';
 
 export type ApprovalStatus='PENDING'|'APPROVED'|'INVALIDATED'|'USED';
 export interface Approval {actor_type?:'HUMAN';actor_display_label?:string;approval_id:string;payable_id:string;approved_at:string|null;approved_by:string|null;execution_fingerprint:string;quote_id:string;expires_at:string;status:ApprovalStatus}
-type Intent={input:DecisionInput;quote:QuotedFx|null};
+type Intent=Pick<Evaluation,'input'|'quote'|'statement'>;
 const canonical=(v:unknown):string=>JSON.stringify(v,(_k,x)=>typeof x==='bigint'?{__money:x.toString()}:x&&typeof x==='object'&&!Array.isArray(x)?Object.fromEntries(Object.entries(x).sort(([a],[b])=>a.localeCompare(b))):x);
 const parse=<T,>(s:string):T=>JSON.parse(s,(_k,v)=>v&&typeof v==='object'&&Object.keys(v).length===1&&'__money'in v?BigInt(v.__money):v);
 export function intentFingerprint(p:Intent):string{
   const i=p.input;
-  return createHash('sha256').update(canonical({version:1,payable:i.payable,treasury_context:i.treasury,source_currency:i.treasury.source_currency,reserve:i.treasury.fixed_reserve,commitments:i.treasury.committed_amount,funding:i.funding,fx_policy:i.fx_policy,quote:p.quote})).digest('hex');
+  return createHash('sha256').update(canonical({version:1,payable:i.payable,treasury_context:i.treasury,source_currency:i.treasury.source_currency,reserve:i.treasury.fixed_reserve,commitments:i.treasury.committed_amount,funding:i.funding,fx_policy:i.fx_policy,quote:p.quote,...(p.statement?{financial_statement_v1:p.statement}:{})})).digest('hex');
 }
 function eligible(p:Intent,now:string):boolean{
   const q=p.quote;

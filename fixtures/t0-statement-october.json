@@ -1,0 +1,23 @@
+{
+  "provenance": "Recorded T:0 sandbox report fields only. The separate approval and decision dates in the supporting scene are synthetic.",
+  "entityRef": "sha256:6a964dffd1c2485aa75c544d48cb69eadb10b2a18906c902ffd6c5b7b4eb55e8",
+  "periodStart": "2026-10-01",
+  "periodEnd": "2026-10-30",
+  "capturedAt": "2026-11-02T23:05:53.303Z",
+  "balanceSheet": {
+    "reporting_currency":"USD","amount_unit":"atoms","atoms_per_unit":100,
+    "periods":[{"id":"2026-10","start_date":"2026-10-01","end_date":"2026-10-30"}],
+    "sections":[
+      {"account_type":"asset","balances":{"2026-10":13305090},"children":[{"account_id":"type_group_bank","account_kind":"type_group","balances":{"2026-10":21644433}}]},
+      {"account_type":"liability","balances":{"2026-10":280806}}
+    ]
+  },
+  "cashFlow": {
+    "reporting_currency":"USD","amount_unit":"atoms","atoms_per_unit":100,
+    "periods":[{"id":"2026-10","start_date":"2026-10-01","end_date":"2026-10-30"}],
+    "sections":[
+      {"key":"operating","is_subtotal":false,"balances":{"2026-10":-1755443}},
+      {"key":"net_change","is_subtotal":true,"balances":{"2026-10":-1755443}}
+    ]
+  }
+}
