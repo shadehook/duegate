@@ -104,6 +104,15 @@ test('presentation hero shows synthetic threshold evidence, multi-source manifes
   const s=new PresentationService(dir,undefined,undefined,{accountingEvidencePath:'fixtures/t0-paid-bill.json',statementEvidencePath:'fixtures/t0-statement-october.json'});
   const v=await s.action('open'),html=renderCase(v);assert.equal(v.decision,'WAIT');assert.equal(v.accountingCheck?.decision,'BLOCK_DUPLICATE');
   for(const text of ['REAPPROVAL_REQUIRED','FINANCIAL_CONTEXT_CHANGED','USD 310,000.00','USD 218,000.00','USD 250,000.00','MINIMUM','T:0 · Airwallex · DueGate policy','Synthetic policy demonstration','Airwallex writes attempted'])assert.ok(html.includes(text),text);
+  const intro=html.indexOf('data-testid="product-introduction"'),story=html.indexOf('id="t0-financial-context"'),payment=html.indexOf('class="payable-sheet"');
+  assert.ok(intro>0&&story>intro&&payment>story,'Selected-claim story follows introduction and precedes WAIT payable');
+  assert.equal(html.split(' id="t0-financial-context"').length-1,1,'Story appears once');
+  assert.match(html,/These changed values are not live T:0 observations/);
+  assert.match(html,/Approval is bound to selected claims across payment state, Airwallex context, optional T:0 context, and DueGate policy/);
+  assert.match(html,/A protected claim change that violates its bound policy requires reapproval/);
+  assert.doesNotMatch(html,/Any protected change invalidates|Approval is bound to the payment, quote, funding and cutoff/);
+  for(const selector of ['duegate-decision','funding-context','fx-context','deadline','human-approval-state','t0-accounting-check','audit-timeline'])assert.ok(html.includes('data-testid="'+selector+'"'));
+  assert.ok(html.includes('data-detail="t0-statement-recheck"'));
   assert.equal(v.statementScene?.materialChange?.airwallexWritesAttempted,0);assert.equal(v.statementScene?.later.decision,'ESCALATE');assert.equal(s.adapter.writeAttempts,0);
   assert.equal(recordedStatementScene('fixtures/t0-statement-october.json').materialChange?.decision,'REAPPROVAL_REQUIRED');
  }finally{assert.ok(resolve(dir).startsWith(resolve(tmpdir())+sep+'duegate-selected-scene-'));rmSync(dir,{recursive:true});}
