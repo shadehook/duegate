@@ -6,7 +6,7 @@ import { major, AmbiguousTransferResponse } from './airwallex-adapter.mts';
 import { ExecutionLedger } from './execution-ledger.mts';
 import type {ExactAuthorization} from './approval-store.mts';
 import {requireStatements,StatementVeto} from './financial-statement-context.mts';
-import type {StatementReader,StatementSnapshot} from './financial-statement-context.mts';
+import type {StatementReader,StatementSnapshot,StatementPolicy} from './financial-statement-context.mts';
 
 export function serialize(value: unknown): string {
   return JSON.stringify(value, (_k, v) => typeof v === 'bigint' ? { __duegate_bigint: v.toString() } : v);
@@ -38,7 +38,10 @@ export class ExecutionController {
   private readonly ledger: ExecutionLedger;
   private readonly clock: () => string;
   private readonly statements?:StatementReader;
-  constructor(adapter: AirwallexAdapter, ledger: ExecutionLedger, clock: () => string, statements?:StatementReader) { this.adapter = adapter; this.ledger = ledger; this.clock = clock; this.statements=statements; }
+  private readonly statementPolicy?:StatementPolicy;
+  private writesAttempted=0;
+  get airwallexWritesAttempted(){return this.writesAttempted;}
+  constructor(adapter: AirwallexAdapter, ledger: ExecutionLedger, clock: () => string, statements?:StatementReader,statementPolicy?:StatementPolicy) { this.adapter = adapter; this.ledger = ledger; this.clock = clock; this.statements=statements;this.statementPolicy=statementPolicy; }
   async recheckStatements(intent:{statement?:StatementSnapshot}):Promise<void>{
     if(!this.statements && !('statement' in intent))return;
     if(!intent.statement)throw new StatementVeto(); // No retroactive baseline for a legacy approval.
@@ -59,7 +62,7 @@ export class ExecutionController {
     // Engine asks for a quote only after duplicate/cutoff/cash gates pass.
     let capture:Awaited<ReturnType<typeof requireStatements>>|undefined;
     if (result.reason === 'QUOTE_MISSING') {
-      if(this.statements)capture=await requireStatements(this.statements,this.clock);
+      if(this.statements)capture=await requireStatements(this.statements,this.clock,undefined,this.statementPolicy);
       quote = await this.adapter.createFxQuote({ source_currency: input.treasury.source_currency, target_currency: input.payable.currency, target_amount: input.payable.amount });
       input.quote = quote; input.fx_policy.quote_expiry = quote.expires_at; input.now = this.clock();
       if (Date.parse(quote.valid_from_at) > Date.parse(input.now)) throw new Error('Quote not yet valid');
@@ -118,6 +121,7 @@ export class ExecutionController {
     if (sourceBefore.length !== 1) throw new Error('Source balance unavailable; reconcile claim');
     current.treasury.wallet_balance = sourceBefore[0].available; current.now = this.clock();
     if (decide(current).decision !== 'EXECUTE') throw new Error('Final pre-conversion gate blocked; reconcile claim');
+    this.writesAttempted++;
     const conversion = await this.adapter.createConversion(p.conversion);
     this.ledger.recordConversion(current.payable.payable_id, conversion.id);
     if (conversion.status !== 'SETTLED' || conversion.quote_id !== p.quote.quote_id || conversion.request_id !== p.conversion.request_id
@@ -129,6 +133,7 @@ export class ExecutionController {
       || targetAfter.available !== targetBefore.available + p.quote.target_amount
       || sourceAfter.available < current.treasury.fixed_reserve + current.treasury.committed_amount) throw new Error('Conversion balances require reconciliation; transfer not submitted');
     if (Date.parse(this.clock()) >= Date.parse(current.payable.latest_safe_execution_at)) throw new Error('Cutoff reached after conversion; reconcile');
+    this.writesAttempted++;
     const transfer = await this.adapter.createTransfer(p.transfer);
     this.ledger.attachTransfer(current.payable.payable_id, transfer.id);
     this.ledger.observeTransfer(current.payable.payable_id,transfer,this.clock());
@@ -204,6 +209,7 @@ export class ExecutionController {
       checkLock();
       authorization?.check(p,true);
       if (decide({ ...input, now: this.clock() }).decision !== 'EXECUTE') throw new Error('Gate changed before conversion');
+      this.writesAttempted++;
       const created = await this.adapter.createConversion(structuredClone(p.conversion));
       this.ledger.recordConversion(payableId, created.id, created.status);
       audit('CONVERSION_CREATED', created);
@@ -228,6 +234,7 @@ export class ExecutionController {
       authorization?.check(p,true);
       await this.recheckStatements(p);
       authorization?.check(p,true);
+      this.writesAttempted++;
       const sent = await this.adapter.createTransfer(structuredClone(p.transfer));
       this.ledger.attachTransfer(payableId, sent.id);
       audit('TRANSFER_CREATED', sent);

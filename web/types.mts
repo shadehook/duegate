@@ -1,4 +1,6 @@
+import type {Decision,RevalidationEvidence,ChangedField} from '../src/approval-types.d.mts';
 export interface CaseView {
+  contextRevalidation?:RevalidationEvidence;
   statementScene?:StatementScene;
   statementTerms?:{start:string;end:string;cash:string;net:string};
   accountingCheck?:AccountingCheckView;
@@ -11,7 +13,7 @@ export interface CaseView {
   mode:'dry'|'sandbox';caseId:string;payableId:string;supplier:string;amount:string;due:string;cutoff:string;clock:string;
   source:'USD';target:'EUR';beneficiary:string;connected:boolean;balanceAsOf:string|null;
   treasury:{balance:string;reserve:string;committed:string;free:string;required:string;inflow:string;eta:string};
-  decision:string;reason:string;transition:string|null;canExecute:boolean;canApply:boolean;review:boolean;
+  decision:Decision|'UNAVAILABLE';reason:string;transition:string|null;canExecute:boolean;canApply:boolean;review:boolean;
   facts:null|{classification:string;inflow:string;amount:string;precision:string;date:string|null;exact:string|null;windowStart:string|null;windowEnd:string|null;hash:string};
   quote:null|{id:string;rate:string;expires:string;sourceAmount:string;targetAmount:string};
   preview:null|{key:string;digest:string;reserveRemaining:string};
@@ -20,13 +22,15 @@ export interface CaseView {
   audit:{at:string;event:string;detail:string}[];
 }
 interface StatementCheckView {
-  decisionDate:string;coversDecisionDate:boolean|null;decision:'ESCALATE'|null;
-  result:'FINANCIAL_CONTEXT_OK'|'FINANCIAL_CONTEXT_CHANGED'|'FINANCIAL_CONTEXT_INCOMPLETE'|'FINANCIAL_CONTEXT_OUT_OF_PERIOD';
+  decisionDate:string;coversDecisionDate:boolean|null;decision:'ESCALATE'|'REAPPROVAL_REQUIRED'|null;
+  approvalVersion:number;changedFields:ChangedField[];
+  result:'FINANCIAL_CONTEXT_OK'|'FINANCIAL_CONTEXT_CHANGED'|'FINANCIAL_CONTEXT_INCOMPLETE'|'FINANCIAL_CONTEXT_OUT_OF_PERIOD'|'FINANCIAL_CONTEXT_STALE';
 }
 export interface StatementScene {
   mode:'recorded'; periodStart:string|null;periodEnd:string|null;capturedAt:string|null;currency:string|null;
   cash:string|null;net:string|null;fingerprint:string;sourceRefs:readonly string[];
   initial:StatementCheckView;later:StatementCheckView;
+  materialChange?:RevalidationEvidence;
 }
 /** Sanitized read model; contains no provider IDs, credentials or execution input. */
 export interface AccountingCheckView {

@@ -15,8 +15,9 @@ import type {FundingUpdateV2} from '../src/funding-v2.mts';
 import type {CaseView} from '../web/types.mts';
 import {ApprovalStore,intentFingerprint} from '../src/approval-store.mts';
 import {safeAuditExport} from '../src/audit-export.mts';
+import type {RevalidationEvidence} from '../src/approval-context.mts';
 import {StatementVeto} from '../src/financial-statement-context.mts';
-import type {StatementReader,StatementFailure} from '../src/financial-statement-context.mts';
+import type {StatementReader,StatementFailure,StatementPolicy} from '../src/financial-statement-context.mts';
 
 export const SANDBOX_PAYABLE='duegate-demo-dg001-sandbox-001';
 const DEMO_BENEFICIARY='synthetic-german-eur-beneficiary';
@@ -32,11 +33,12 @@ export class DemoService {
   private receipts:string[]=[];private events:CaseView['audit']=[];private result:CaseView['result']=null;
   private writes=0;private conversions=0;private transfers=0;
   private approvals:ApprovalStore;
+  private contextEvidence:RevalidationEvidence|undefined;
   private statementFailure:StatementFailure|null=null;
-  constructor(adapter:AirwallexAdapter,directory:string,clock=()=>new Date().toISOString(),options:{finalProof?:boolean;financialWritesEnabled?:boolean;beneficiaryId?:string;interpretation?:InterpretationAdapter;claudeStory?:boolean;statements?:StatementReader}={}){
+  constructor(adapter:AirwallexAdapter,directory:string,clock=()=>new Date().toISOString(),options:{finalProof?:boolean;financialWritesEnabled?:boolean;beneficiaryId?:string;interpretation?:InterpretationAdapter;claudeStory?:boolean;statements?:StatementReader;statementPolicy?:StatementPolicy}={}){
     this.claudeStory=options.claudeStory===true;this.interpretation=options.interpretation??{interpreter:deterministicFundingV2,provider:'deterministic'};this.beneficiaryId=options.beneficiaryId??DEMO_BENEFICIARY;this.finalProof=options.finalProof===true;this.payableId=this.finalProof?FINAL_PAYABLE:SANDBOX_PAYABLE;this.writesEnabled=options.financialWritesEnabled??!this.finalProof;
     this.adapter=adapter;this.dir=directory;this.clock=clock;mkdirSync(directory,{recursive:true});
-    this.ledger=new ExecutionLedger(join(directory,'ledger'));this.controller=new ExecutionController(adapter,this.ledger,clock,options.statements);
+    this.ledger=new ExecutionLedger(join(directory,'ledger'));this.controller=new ExecutionController(adapter,this.ledger,clock,options.statements,options.statementPolicy);
     this.approvals=new ApprovalStore(join(directory,'approvals'),clock);
     if(existsSync(join(directory,'audit.jsonl')))this.events=readFileSync(join(directory,'audit.jsonl'),'utf8').trim().split('\n').filter(Boolean).map(x=>JSON.parse(x));
     if(existsSync(join(directory,'result.json'))){this.result=JSON.parse(readFileSync(join(directory,'result.json'),'utf8'));this.writes=2;this.conversions=1;this.transfers=1;}
@@ -46,13 +48,16 @@ export class DemoService {
       this.input=saved.input;this.mode=saved.mode;this.receipts=saved.receipts;
     }
     const approval=this.approvals.current(this.payableId);
-    const lastStatement=this.events.filter(e=>e.event.startsWith('FINANCIAL_CONTEXT_')).at(-1)?.event;
-    if(lastStatement==='FINANCIAL_CONTEXT_CHANGED'||lastStatement==='FINANCIAL_CONTEXT_INCOMPLETE'||lastStatement==='FINANCIAL_CONTEXT_OUT_OF_PERIOD')this.statementFailure=lastStatement;
+    const lastStatementEvent=this.events.filter(e=>e.event.startsWith('FINANCIAL_CONTEXT_')).at(-1) as (CaseView['audit'][number]&{data?:RevalidationEvidence})|undefined;
+    const lastStatement=lastStatementEvent?.event;
+    if(lastStatementEvent?.data&&lastStatementEvent.data.reasonCode===lastStatement)this.contextEvidence=lastStatementEvent.data;
+    if(lastStatement==='FINANCIAL_CONTEXT_CHANGED'||lastStatement==='FINANCIAL_CONTEXT_INCOMPLETE'||lastStatement==='FINANCIAL_CONTEXT_OUT_OF_PERIOD'||lastStatement==='FINANCIAL_CONTEXT_STALE')this.statementFailure=lastStatement;
     if(approval&&this.state()==='MISSING'&&['APPROVED','PENDING'].includes(approval.approval.status)&&
        Boolean(approval.evaluation.statement)!==Boolean(options.statements)){
       this.statementFailure='FINANCIAL_CONTEXT_INCOMPLETE';
       this.approvals.invalidate(this.payableId,this.statementFailure);
-      this.audit(this.statementFailure,'Restored approval and statement policy do not match; new review required');
+      this.contextEvidence=new StatementVeto(this.statementFailure).evidence(0);
+      this.audit(this.statementFailure,'Restored approval and statement policy do not match; new review required',this.contextEvidence);
     }
     if(approval&&this.state()==='MISSING'){
       this.mode='sandbox';this.evaluation=approval.evaluation;this.input=structuredClone(approval.evaluation.input);this.asOf=this.input.now;
@@ -132,7 +137,7 @@ export class DemoService {
         this.approvals.invalidate(this.payableId,'REQUOTE_REQUIRED');
         if(evaluated.decision.decision==='EXECUTE'){
           if(!evaluated.statement&&(this.statementFailure||this.approvals.current(this.payableId)?.evaluation.statement))throw new StatementVeto();
-          if(evaluated.statement){this.audit('FINANCIAL_CONTEXT_OK','Statement snapshot included in proposed approval',evaluated.statementEvidence);this.statementFailure=null;}
+          if(evaluated.statement){this.audit('FINANCIAL_CONTEXT_OK','Statement snapshot included in proposed approval',evaluated.statementEvidence);this.statementFailure=null;this.contextEvidence=undefined;}
           const approval=this.approvals.propose(evaluated);this.approvedDigest=approval.execution_fingerprint;
         }
       }else if(name==='invalidate'){
@@ -175,7 +180,8 @@ export class DemoService {
     }catch(error){
       if(error instanceof StatementVeto){
         this.statementFailure=error.reason;this.approvals.invalidate(this.payableId,error.reason);this.approvedDigest=null;
-        this.audit(error.reason,'ESCALATE · statement check refused execution; fresh context and human review required');
+        this.contextEvidence=error.evidence(this.controller.airwallexWritesAttempted);
+        this.audit(error.reason,this.contextEvidence.decision+' · protected claims revalidated; execution stopped',this.contextEvidence);
       }
       this.importExecutionAudit();this.error=name==='execute'?'Execution refused: approval/context invalid, financial writes disabled, or execution needs review. Refresh context; do not reset existing claims.':name==='interpret'?'The update could not be interpreted safely. Use a supported synthetic funding statement.':'Sandbox request failed or the scenario could not be loaded. No executable preview is available.';
       if(name==='funded'||name==='execute'){this.evaluation=null;this.approvedDigest=null;}
@@ -216,7 +222,12 @@ export class DemoService {
     const storedApproval=this.approvals.current(this.payableId);
     const approval=this.evaluation?this.approvals.inspect(this.evaluation):storedApproval?this.approvals.inspect(storedApproval.evaluation):null;
     const veto=this.statementFailure&&live&&!['TRANSFER_ATTACHED','FAILED_REVIEW_REQUIRED'].includes(persisted)?this.statementFailure:null;
-    const decision=veto?'ESCALATE':persisted==='FAILED_REVIEW_REQUIRED'&&live?'FAILED_REVIEW_REQUIRED':blocked?'BLOCK_DUPLICATE':d?.decision??'UNAVAILABLE';
+    const invalidation=approval?.status==='INVALIDATED'?approval.invalidation:undefined;
+    const contextEvidence=this.contextEvidence??(invalidation?{...invalidation,airwallexWritesAttempted:this.controller.airwallexWritesAttempted}:undefined);
+    const material=approval?.status==='INVALIDATED'&&(invalidation?.decision==='REAPPROVAL_REQUIRED'||(!invalidation&&['QUOTE_REPLACEMENT_REQUESTED','PROTECTED_INPUT_CHANGED'].includes(storedApproval?.reason??'')));
+    const reviewState=live&&['FAILED_REVIEW_REQUIRED','REVIEW','EXECUTING'].includes(persisted);
+    const decision:CaseView['decision']=reviewState?'ESCALATE':veto?(veto==='FINANCIAL_CONTEXT_CHANGED'&&contextEvidence?.airwallexWritesAttempted===0?'REAPPROVAL_REQUIRED':'ESCALATE'):blocked?'BLOCK_DUPLICATE':
+      d&&['QUOTE_EXPIRED','CUTOFF_REACHED','INVALID_INPUT'].includes(d.reason)?'ESCALATE':material?'REAPPROVAL_REQUIRED':invalidation?.decision??d?.decision??'UNAVAILABLE';
     const p=input?.payable,t=input?.treasury;const free=t?t.wallet_balance-t.fixed_reserve-t.committed_amount:0n;
     const safe=(v:bigint|undefined)=>v===undefined?'—':money(v);
     const bound=storedApproval?.evaluation.statement;
@@ -231,7 +242,8 @@ export class DemoService {
     return {interpreterProvider:this.interpretation.provider,connectionLabel:this.connected?'Airwallex sandbox: Connected':observedResult?'Airwallex proof: Recorded · live connection not checked':'Airwallex sandbox: Not checked',approvalReason:approval?.status==='INVALIDATED'?'Approval no longer matches current execution context. A new quote/context requires new approval.':undefined,finalProof:this.finalProof,financialWritesEnabled:this.writesEnabled,quoteLimit:'Maximum 1.50 USD per EUR; source budget USD '+safe(input?.funding.required_amount),fundingExample:this.claudeStory?'The $4,000 customer payment expected Thursday has been delayed until Monday.':this.finalProof&&p?'INFLOW-001 delayed until '+new Date(Date.parse(p.latest_safe_execution_at)+3600000).toISOString():'The $4,000 customer payment expected Thursday has been delayed until Monday.',mode:this.mode,caseId:'Supplier Payment DG-001',payableId:live||this.finalProof?this.payableId:'duegate-visual-dg001',supplier:'Nordlicht Supply · demo',amount:live||this.finalProof?'1.00':'10000.00',
       due:p?.due_at??'2026-10-09T20:00:00.000Z',cutoff:p?.latest_safe_execution_at??'2026-10-09T16:00:00.000Z',clock:live||this.finalProof?this.clock():STORY_CLOCK,source:'USD',target:'EUR',beneficiary:'Known sandbox DE / EUR · …'+(p?.beneficiary_id??this.beneficiaryId).slice(-8),
       connected:this.connected,balanceAsOf:this.asOf,treasury:{balance:safe(t?.wallet_balance),reserve:safe(t?.fixed_reserve),committed:safe(t?.committed_amount),free:input?money(free):'—',required:safe(input?.funding.required_amount),inflow:safe(t?.expected_inflow_amount),eta:t?.expected_inflow_eta_window?`${t.expected_inflow_eta_window.date??'Window'} · ${t.expected_inflow_eta_window.timezone}`:t?.expected_inflow_eta??'—'},
-      decision,reason:veto??(persisted==='FAILED_REVIEW_REQUIRED'?'TRANSFER_REVIEW_REQUIRED':blocked?'EXISTING_EXECUTION':d?.reason??'BALANCE_UNAVAILABLE'),transition:this.transition,
+      decision,reason:reviewState?'TRANSFER_REVIEW_REQUIRED':veto??(blocked?'EXISTING_EXECUTION':material?invalidation?.reasonCode??'PROTECTED_INPUT_CHANGED':invalidation?.reasonCode??d?.reason??'BALANCE_UNAVAILABLE'),transition:this.transition,
+      ...(contextEvidence?{contextRevalidation:contextEvidence}:{}),
       ...(bound?{statementTerms:{start:bound.periodStart,end:bound.periodEnd,cash:money(BigInt(bound.accountingCashMinor)),net:money(BigInt(bound.netCashChangeMinor))}}:{}),
       approval:live?approval:null,canApprove:live&&!blocked&&!!this.evaluation&&approval?.status==='PENDING'&&decision==='EXECUTE',
       quoteFreshness:!q?'NONE':!Number.isFinite(Date.parse(q.expires_at))?'INVALID':Date.parse(q.expires_at)<=Date.parse(this.clock())?'EXPIRED':'FRESH',

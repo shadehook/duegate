@@ -44,7 +44,8 @@ export interface ExecutionState {
   state: 'no_execution' | 'executing' | 'completed' | 'failed';
   transfer_id: string | null;
 }
-export type Decision = 'WAIT' | 'EXECUTE' | 'ESCALATE' | 'BLOCK_DUPLICATE';
+import type {Decision} from './approval-types.d.mts';
+export type {Decision} from './approval-types.d.mts';
 export type Reason = 'INVALID_INPUT' | 'EXECUTION_BLOCKED' | 'PAYABLE_NOT_OPEN'
   | 'CUTOFF_REACHED' | 'QUOTE_MISSING' | 'QUOTE_EXPIRED' | 'FX_LIMIT_BREACHED'
   | 'INFLOW_TOO_LATE' | 'AWAIT_CONFIRMED_INFLOW' | 'RESERVE_PROTECTION'

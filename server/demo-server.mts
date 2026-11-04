@@ -30,6 +30,7 @@ const service=presentation?new PresentationService(presentationDirectory,'fixtur
   accountingEvidencePath:t0Recorded?'fixtures/t0-paid-bill.json':undefined,
   statementEvidencePath:t0Recorded?'fixtures/t0-statement-october.json':undefined
 }):new DemoService(new (await import('../src/airwallex-sandbox.mts')).AirwallexSandbox(resolve('.env'),{financialWritesEnabled:writes}),resolve(finalProof?'.demo-final-proof':'.demo-state'),undefined,{finalProof,financialWritesEnabled:writes,beneficiaryId:process.env.DUEGATE_SANDBOX_BENEFICIARY_ID,
+  statementPolicy:liveStatements?{accountingCash:{policy:'MUST_EQUAL'},netCashChange:{policy:'MUST_EQUAL'}}:undefined,
   statements:liveStatements?t0StatementReader(process.env.T0_API_KEY,process.env.T0_ENTITY_ID):undefined});
 const assets:Record<string,[string,string]>={'/':['index.html','text/html'],'/styles.css':['styles.css','text/css'],'/app.mjs':['app.mjs','text/javascript'],'/view.mjs':['view.mjs','text/javascript'],'/types.mjs':['types.mjs','text/javascript']};
 createServer(async(req,res)=>{

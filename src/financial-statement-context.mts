@@ -1,4 +1,6 @@
 import {createHash} from 'node:crypto';
+import {APPROVAL_VERSION,statementClaims,changedClaims,canonical,validateStatementPolicy} from './approval-context.mts';
+import type {ChangedField,RevalidationEvidence} from './approval-context.mts';
 
 export const BALANCE_SHEET = '/v1/reports/balance-sheet';
 export const CASH_FLOW = '/v1/reports/cash-flow';
@@ -9,13 +11,18 @@ export interface FinancialStatementContext extends Period {
   cashFlow:{netCashChangeMinor?:bigint; operatingCashFlowMinor?:bigint};
   sourceRefs:readonly [typeof BALANCE_SHEET,typeof CASH_FLOW];
 }
+export type MoneyClaimPolicy={policy:'MUST_EQUAL'}|{policy:'MINIMUM';threshold:string};
+export interface StatementPolicy {accountingCash:MoneyClaimPolicy;netCashChange:MoneyClaimPolicy;maxCaptureAgeMs?:number}
 export interface StatementSnapshot extends Period {
+  policy:StatementPolicy;
   entityRef:string; reportCurrency:'USD'; accountingCashMinor:string; netCashChangeMinor:string;
 }
-export type StatementFailure='FINANCIAL_CONTEXT_CHANGED'|'FINANCIAL_CONTEXT_INCOMPLETE'|'FINANCIAL_CONTEXT_OUT_OF_PERIOD';
+export type StatementFailure='FINANCIAL_CONTEXT_CHANGED'|'FINANCIAL_CONTEXT_INCOMPLETE'|'FINANCIAL_CONTEXT_OUT_OF_PERIOD'|'FINANCIAL_CONTEXT_STALE';
 export class StatementVeto extends Error {
   readonly reason:StatementFailure;
-  constructor(reason:StatementFailure='FINANCIAL_CONTEXT_INCOMPLETE'){super(reason);this.reason=reason;}
+  readonly changedFields:ChangedField[];
+  constructor(reason:StatementFailure='FINANCIAL_CONTEXT_INCOMPLETE',changedFields:ChangedField[]=[]){super(reason);this.reason=reason;this.changedFields=changedFields;}
+  evidence(writes=0):RevalidationEvidence{return {decision:this.reason==='FINANCIAL_CONTEXT_CHANGED'&&writes===0?'REAPPROVAL_REQUIRED':'ESCALATE',reasonCode:this.reason,approvalVersion:APPROVAL_VERSION,changedFields:this.changedFields,airwallexWritesAttempted:writes};}
 }
 const invalid=():never=>{throw new StatementVeto();};
 const date=(s:unknown):s is string=>typeof s==='string'&&/^\d{4}-\d\d-\d\d$/.test(s)&&
@@ -52,41 +59,51 @@ export function parseStatements(balanceSheet:unknown,cashFlow:unknown,period:Per
     balanceSheet:{accountingCashMinor:cell(bank,bs.id),totalAssetsMinor:cell(asset,bs.id),totalLiabilitiesMinor:cell(one(bs.sections,'account_type','liability',true),bs.id)},
     cashFlow:{netCashChangeMinor:cell(net,cf.id),operatingCashFlowMinor:cell(one(cf.sections,'key','operating',true),cf.id)},sourceRefs:[BALANCE_SHEET,CASH_FLOW]};
 }
-// Exact equality, in atoms. Optional totals and local capture time are evidence, not protected assumptions.
-export function statementSnapshot(c:FinancialStatementContext):StatementSnapshot {
+// Each selected money claim requires an explicit comparison. Unselected totals remain evidence only.
+export function statementSnapshot(c:FinancialStatementContext,policy:StatementPolicy):StatementSnapshot {
+  validateStatementPolicy(policy);
   if(c.source!=='t0'||!validPeriod(c)||!captureTime(c.capturedAt)||c.reportCurrency!=='USD'||!/^sha256:[a-f0-9]{64}$/.test(c.entityRef)||
      c.sourceRefs?.length!==2||c.sourceRefs[0]!==BALANCE_SHEET||c.sourceRefs[1]!==CASH_FLOW||
      typeof c.balanceSheet.accountingCashMinor!=='bigint'||typeof c.cashFlow.netCashChangeMinor!=='bigint')throw new StatementVeto();
-  return {entityRef:c.entityRef,reportCurrency:c.reportCurrency,periodStart:c.periodStart,periodEnd:c.periodEnd,
+  if(policy?.maxCaptureAgeMs!==undefined&&(!Number.isSafeInteger(policy.maxCaptureAgeMs)||policy.maxCaptureAgeMs<0))throw new StatementVeto();
+  return {policy:structuredClone(policy),entityRef:c.entityRef,reportCurrency:c.reportCurrency,periodStart:c.periodStart,periodEnd:c.periodEnd,
     accountingCashMinor:c.balanceSheet.accountingCashMinor.toString(),netCashChangeMinor:c.cashFlow.netCashChangeMinor.toString()};
 }
 export function statementFingerprint(s:StatementSnapshot):string {
-  return createHash('sha256').update(JSON.stringify(['t0-statement-v1',s.entityRef,s.reportCurrency,s.periodStart,s.periodEnd,s.accountingCashMinor,s.netCashChangeMinor])).digest('hex');
+  return createHash('sha256').update(canonical(statementClaims(s))).digest('hex');
 }
-export function checkStatements(approved:StatementSnapshot,current:FinancialStatementContext|null,decisionDate:string){
+export function checkStatements(approved:StatementSnapshot,current:FinancialStatementContext|null,decisionDate:string,now?:string){
   let reason:StatementFailure|'FINANCIAL_CONTEXT_OK'='FINANCIAL_CONTEXT_INCOMPLETE';
-  let coversDecisionDate:boolean|null=null;
+  let coversDecisionDate:boolean|null=null;let changedFields:ChangedField[]=[];
   try {
     if(!date(decisionDate)||!current)throw new StatementVeto();
-    const snapshot=statementSnapshot(current);
+    const snapshot=statementSnapshot(current,approved.policy);
+    if(snapshot.entityRef!==approved.entityRef||snapshot.reportCurrency!==approved.reportCurrency||snapshot.periodStart!==approved.periodStart||snapshot.periodEnd!==approved.periodEnd)throw new StatementVeto();
     coversDecisionDate=covers(current,decisionDate);
+    const age=now?Date.parse(now)-Date.parse(current.capturedAt):NaN,max=approved.policy?.maxCaptureAgeMs;
     if(!coversDecisionDate)reason='FINANCIAL_CONTEXT_OUT_OF_PERIOD';
-    else reason=statementFingerprint(approved)===statementFingerprint(snapshot)?'FINANCIAL_CONTEXT_OK':'FINANCIAL_CONTEXT_CHANGED';
-  }catch{/* Missing or malformed is never support. */}
-  return {result:reason,decision:reason==='FINANCIAL_CONTEXT_OK'?null:'ESCALATE' as const,decisionDate,coversDecisionDate};
+    else if(max!==undefined&&(!Number.isFinite(age)||age<0||age>max))reason='FINANCIAL_CONTEXT_STALE';
+    else {
+      changedFields=changedClaims(statementClaims(approved),statementClaims(snapshot));
+      reason=changedFields.length?'FINANCIAL_CONTEXT_CHANGED':'FINANCIAL_CONTEXT_OK';
+    }
+  }catch{changedFields=[];/* Malformed/missing is never a material-change claim. */}
+  return {result:reason,decision:reason==='FINANCIAL_CONTEXT_OK'?null:reason==='FINANCIAL_CONTEXT_CHANGED'?'REAPPROVAL_REQUIRED' as const:'ESCALATE' as const,decisionDate,coversDecisionDate,approvalVersion:APPROVAL_VERSION,changedFields};
 }
 export type StatementReader=(period:Period)=>Promise<FinancialStatementContext>;
-export async function requireStatements(reader:StatementReader|undefined,clock:()=>string,approved?:StatementSnapshot){
+export async function requireStatements(reader:StatementReader|undefined,clock:()=>string,approved?:StatementSnapshot,policy?:StatementPolicy){
   try {
     if(!reader)throw new StatementVeto();
+    const selectedPolicy=approved?approved.policy:policy;
+    validateStatementPolicy(selectedPolicy);
     const day=clock().slice(0,10);
     const period=approved?{periodStart:approved.periodStart,periodEnd:approved.periodEnd}:{periodStart:day.slice(0,7)+'-01',periodEnd:day};
     if(!validPeriod(period))throw new StatementVeto();
     if(!covers(period,day))throw new StatementVeto('FINANCIAL_CONTEXT_OUT_OF_PERIOD');
-    const c=await reader(period), snapshot=statementSnapshot(c);
+    const c=await reader(period), snapshot=statementSnapshot(c,selectedPolicy);
     if(c.periodStart!==period.periodStart||c.periodEnd!==period.periodEnd)throw new StatementVeto();
-    const check=checkStatements(approved??snapshot,c,clock().slice(0,10));
-    if(check.result!=='FINANCIAL_CONTEXT_OK')throw new StatementVeto(check.result);
+    const check=checkStatements(approved??snapshot,c,clock().slice(0,10),clock());
+    if(check.result!=='FINANCIAL_CONTEXT_OK')throw new StatementVeto(check.result,check.changedFields);
     return {snapshot,evidence:{...c,decisionDate:check.decisionDate,coversDecisionDate:check.coversDecisionDate}};
   }catch(err){throw err instanceof StatementVeto?err:new StatementVeto();}
 }
