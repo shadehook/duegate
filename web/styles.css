@@ -15,3 +15,31 @@ main{max-width:1312px;padding:30px 32px 0}.intro{margin-bottom:18px;font-size:11
 @media(max-width:440px){.app-header{gap:14px}.connection{max-width:none;margin-left:0}.hero{padding:24px 20px}.hero h2{font-size:33px;letter-spacing:-1px}.hero-amount>strong{font-size:64px;letter-spacing:-3px}.hero-amount>span{font-size:18px}.decision-panel{margin:0 12px 12px;padding:20px}.decision-main h2{font-size:30px;letter-spacing:-1px}.context-grid{grid-template-columns:1fr}.context{min-height:0;border-right:0}.context-foot{display:block}.context-foot>div+div{margin-top:16px}.modal-head h2{font-size:24px}.modal-amount{font-size:34px}.modal-head,.modal-body{padding:16px}.modal-actions{padding:12px}.timeline li strong{font-size:15px}.quote-summary>strong{font-size:25px}.chapter-heading{margin-top:26px}.section-heading h3{font-size:22px}.brand p{max-width:none}}
 
 .brand h1{font-size:25px;font-weight:600;letter-spacing:-.8px;color:#202E3B;white-space:nowrap}
+
+/* Compact, standalone approval-validity example; existing workspace styles stay intact. */
+.judge-header{padding-top:18px;padding-bottom:18px}
+.judge-presentation{padding-top:16px}
+.judge-presentation>.intro{margin-bottom:8px}
+.judge-presentation>[data-testid="product-introduction"]{font-size:13px;line-height:1.45;margin-bottom:12px}
+.validity-panel{padding:18px 22px;margin-bottom:12px}
+.validity-heading{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
+.validity-heading h3{font-size:23px;letter-spacing:-.6px;font-weight:550}
+.validity-intro{font-size:13px;color:var(--muted);margin-top:3px}
+.validity-evidence{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:24px;margin-top:14px;align-items:center}
+.validity-label{font-size:13px;font-weight:600;margin-bottom:5px}.validity-label span{font-weight:400;margin-left:10px}
+.validity-values{display:grid;grid-template-columns:minmax(0,1fr) 16px minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:center}
+.validity-values div>span{display:block;color:var(--muted);font-size:12px}
+.validity-values strong{display:block;font-size:clamp(18px,2vw,26px);font-weight:550;letter-spacing:-.8px;white-space:nowrap}
+.validity-arrow{color:var(--muted);font-size:20px}.validity-minimum{border-left:1px solid var(--border);padding-left:12px}
+.validity-result{background:var(--tint);border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;gap:16px}
+.validity-result .eyebrow{color:var(--status);font-size:10px;letter-spacing:1px}
+.validity-decision{display:block;font-size:18px;font-weight:600;overflow-wrap:anywhere;color:var(--status)}
+.validity-reason{font-size:10px;margin-top:3px;overflow-wrap:anywhere}
+.validity-writes{border-left:1px solid var(--border);padding-left:12px;flex:0 0 76px}.validity-writes span{display:block;font-size:11px;line-height:1.3}.validity-writes strong{display:block;font-size:32px;font-weight:550;line-height:1.1}
+.validity-boundary{margin-top:10px;font-size:11px}
+.validity-disclosures{display:flex;gap:24px;align-items:start;margin-top:6px}.validity-disclosures>details{min-width:0;flex:1}.validity-disclosures summary{font-size:12px}.validity-disclosures .data-row strong{overflow-wrap:anywhere;min-width:0}
+.judge-presentation>.replay-note{margin-bottom:10px;font-size:11px;padding-top:0;padding-bottom:0}
+.secondary-example{border-top:1px solid var(--border);padding:10px 0 12px;margin-top:8px}.secondary-example h3{font-size:15px;font-weight:600;letter-spacing:0}.secondary-example p{font-size:12px;color:var(--muted);margin-top:2px}
+[data-testid="audit-restore-record"]+[data-testid="audit-restore-record"]{border-top:1px solid var(--border);padding-top:10px;margin-top:10px}
+@media(max-width:1050px){.validity-evidence{grid-template-columns:1fr}.validity-result{justify-content:start}.validity-writes{flex-basis:auto;display:flex;align-items:center;gap:18px}.validity-values strong{font-size:25px}}
+@media(max-width:760px){.validity-heading{display:block}.validity-panel{padding:18px}.validity-values{grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr);gap:8px}.validity-minimum{grid-column:1/-1;border-left:0;padding:8px 0 0}.validity-values strong{font-size:clamp(17px,3.7vw,25px)}.validity-disclosures{display:block}.validity-disclosures>details+details{margin-top:8px}.validity-result{gap:12px;padding:12px}.validity-writes{flex:0 0 60px;display:block}.validity-decision{font-size:16px}.validity-heading h3{font-size:22px}}
