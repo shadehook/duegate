@@ -103,11 +103,11 @@ test('presentation hero shows synthetic threshold evidence, multi-source manifes
  try{
   const s=new PresentationService(dir,undefined,undefined,{accountingEvidencePath:'fixtures/t0-paid-bill.json',statementEvidencePath:'fixtures/t0-statement-october.json'});
   const v=await s.action('open'),html=renderCase(v);assert.equal(v.decision,'WAIT');assert.equal(v.accountingCheck?.decision,'BLOCK_DUPLICATE');
-  for(const text of ['REAPPROVAL_REQUIRED','FINANCIAL_CONTEXT_CHANGED','USD 310,000.00','USD 218,000.00','USD 250,000.00','MINIMUM','T:0 · Airwallex · DueGate policy','Synthetic policy demonstration','Airwallex writes attempted'])assert.ok(html.includes(text),text);
+  for(const text of ['REAPPROVAL_REQUIRED','FINANCIAL_CONTEXT_CHANGED','USD 310,000.00','USD 218,000.00','USD 250,000.00','MINIMUM','T:0 · Airwallex · DueGate policy','Values are synthetic','Airwallex writes attempted'])assert.ok(html.includes(text),text);
   const intro=html.indexOf('data-testid="product-introduction"'),story=html.indexOf('id="t0-financial-context"'),payment=html.indexOf('class="payable-sheet"');
   assert.ok(intro>0&&story>intro&&payment>story,'Selected-claim story follows introduction and precedes WAIT payable');
   assert.equal(html.split(' id="t0-financial-context"').length-1,1,'Story appears once');
-  assert.match(html,/These changed values are not live T:0 observations/);
+  assert.match(html,/Values are synthetic; T:0 retrieval and period-validation evidence is recorded separately below/);
   assert.match(html,/Approval is bound to selected claims across payment state, Airwallex context, optional T:0 context, and DueGate policy/);
   assert.match(html,/A protected claim change that violates its bound policy requires reapproval/);
   assert.doesNotMatch(html,/Any protected change invalidates|Approval is bound to the payment, quote, funding and cutoff/);

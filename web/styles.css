@@ -23,7 +23,7 @@ main{max-width:1312px;padding:30px 32px 0}.intro{margin-bottom:18px;font-size:11
 .judge-presentation>[data-testid="product-introduction"]{font-size:13px;line-height:1.45;margin-bottom:12px}
 .validity-panel{padding:18px 22px;margin-bottom:12px}
 .validity-heading{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
-.validity-heading h3{font-size:23px;letter-spacing:-.6px;font-weight:550}
+.validity-heading h2{font-size:23px;letter-spacing:-.6px;font-weight:550}
 .validity-intro{font-size:13px;color:var(--muted);margin-top:3px}
 .validity-evidence{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:24px;margin-top:14px;align-items:center}
 .validity-label{font-size:13px;font-weight:600;margin-bottom:5px}.validity-label span{font-weight:400;margin-left:10px}
@@ -42,4 +42,4 @@ main{max-width:1312px;padding:30px 32px 0}.intro{margin-bottom:18px;font-size:11
 .secondary-example{border-top:1px solid var(--border);padding:10px 0 12px;margin-top:8px}.secondary-example h3{font-size:15px;font-weight:600;letter-spacing:0}.secondary-example p{font-size:12px;color:var(--muted);margin-top:2px}
 [data-testid="audit-restore-record"]+[data-testid="audit-restore-record"]{border-top:1px solid var(--border);padding-top:10px;margin-top:10px}
 @media(max-width:1050px){.validity-evidence{grid-template-columns:1fr}.validity-result{justify-content:start}.validity-writes{flex-basis:auto;display:flex;align-items:center;gap:18px}.validity-values strong{font-size:25px}}
-@media(max-width:760px){.validity-heading{display:block}.validity-panel{padding:18px}.validity-values{grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr);gap:8px}.validity-minimum{grid-column:1/-1;border-left:0;padding:8px 0 0}.validity-values strong{font-size:clamp(17px,3.7vw,25px)}.validity-disclosures{display:block}.validity-disclosures>details+details{margin-top:8px}.validity-result{gap:12px;padding:12px}.validity-writes{flex:0 0 60px;display:block}.validity-decision{font-size:16px}.validity-heading h3{font-size:22px}}
+@media(max-width:760px){.validity-heading{display:block}.validity-panel{padding:18px}.validity-values{grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr);gap:8px}.validity-minimum{grid-column:1/-1;border-left:0;padding:8px 0 0}.validity-values strong{font-size:clamp(17px,3.7vw,25px)}.validity-disclosures{display:block}.validity-disclosures>details+details{margin-top:8px}.validity-result{gap:12px;padding:12px}.validity-writes{flex:0 0 60px;display:block}.validity-decision{font-size:16px}.validity-heading h2{font-size:22px}}
