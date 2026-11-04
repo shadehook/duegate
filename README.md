@@ -21,11 +21,31 @@ may pass, details may change—or execution may already have been attempted.
 
 **DueGate revalidates that context before money moves.**
 
+## First judge scene: does the approval still hold?
+
+An approved payment is about to execute. DueGate revalidates only the selected
+claims bound to that approval. The leading UI panel shows this **synthetic policy
+demonstration**, not live T:0 observations:
+
+| Protected claim | Approved value | Bound policy | Current value |
+| --- | --- | --- | --- |
+| accounting_cash · t0 | USD 310,000.00 | MINIMUM USD 250,000.00 | USD 218,000.00 |
+
+The current value no longer satisfies the policy. DueGate returns
+**REAPPROVAL_REQUIRED / FINANCIAL_CONTEXT_CHANGED**.
+**Airwallex writes attempted: 0.** These amounts and the threshold are synthetic;
+the panel does not execute a payment or update the separate EUR demo payable.
+
+T:0 supplies read-only accounting context. DueGate decides whether approval still
+holds. Airwallex remains the financial execution rail. Accounting cash does not
+replace Airwallex spendable balance. An unrelated accounting change does not
+invalidate approval.
+
 ## Core decisions
 
 | Decision | Meaning |
 | --- | --- |
-| WAIT | Execution conditions are not ready; any existing approval must remain valid. The initial demo waits for a confirmed inflow before approval. |
+| WAIT | Execution conditions are not ready; any existing approval must remain valid. The secondary funding example waits for a confirmed inflow before approval. |
 | EXECUTE | Financial controls and selected claims pass. The execution gate also requires valid human approval and an unused ledger claim. |
 | REAPPROVAL_REQUIRED | A protected claim violates its approved policy; the old approval cannot authorize execution. |
 | ESCALATE | Required evidence is missing, stale, out of period, ambiguous, malformed, unavailable, or requires investigation. |
@@ -123,21 +143,27 @@ npm ci
 npm test
 npm run typecheck
 npm run build
-npm run demo:presentation
+npm run demo:presentation -- --presentation-run=v3-take-01 --t0-recorded
 ```
 
 Open [the local demo](http://127.0.0.1:4311). No credentials are required.
 Presentation mode uses recorded Airwallex proof, synthetic quotes and a fixed demo
 clock. **No financial writes.**
 
-[Walkthrough](docs/demo.md): WAIT → delayed funding → ESCALATE → restored conditions
-→ quote → human approval → protected change → approval invalidated → fresh approval
-→ recorded Airwallex proof → duplicate blocked → restart protection → audit evidence.
+[Walkthrough](docs/demo.md): selected-claim reapproval proof → WAIT / funding timing
+→ delayed funding → ESCALATE → restored execution conditions → human approval
+→ protected quote/context change → REAPPROVAL_REQUIRED → fresh approval
+→ recorded Airwallex sandbox proof → BLOCK_DUPLICATE → restart protection
+→ audit evidence.
+
+Choose a fresh presentation-run name for each new recording; restart the same name
+to demonstrate persistence. Never delete or reset historical ledgers or proof files.
+See the [V3 recording guide](docs/demo.md#v3-recording-guide) for the 2:15–2:45 sequence.
 
 **The EUR 10,000 narrative obligation was NOT executed.** The recorded historical
 proof concerns a separate **EUR 1.00 synthetic Airwallex sandbox transfer**.
 
-With `--t0-recorded`, the [offline walkthrough](docs/demo.md#statement-period-recheck) also shows a separate synthetic minimum-cash claim crossing its policy boundary and a recorded statement becoming out of period. T:0 supplies read-only accounting context. DueGate determines whether the context remains acceptable for execution. Airwallex remains the source of spendable balance and the execution rail.
+With `--t0-recorded`, the [leading protected-context panel](docs/demo.md#selected-claim-reapproval-and-statement-period-recheck) shows the synthetic minimum-cash policy violation. Its expandable disclosure retains the recorded statement/period check. T:0 supplies read-only accounting context. DueGate determines whether the context remains acceptable for execution. Airwallex remains the source of spendable balance and the execution rail.
 
 ## Historical sandbox proof
 
