@@ -1,225 +1,80 @@
 # DueGate
 
-DueGate is a pre-execution payment control layer for Airwallex. It revalidates
-approved supplier payments against current payment state, execution conditions,
-and selected external financial claims immediately before money moves.
+**Approval is not permanent permission.** DueGate is an execution-time authorization layer for finance teams making cross-border supplier payments. A treasurer may approve a payment in the morning, then see funding slip, a quote expire, or a protected cash balance fall before the payment is sent. DueGate checks whether that specific approval still authorizes execution. Choosing which bills to pay is outside its scope.
 
-Approval is not permanent. DueGate only executes while the conditions behind that
-approval are still valid.
+Immediately before submitting a payment to Airwallex, DueGate revalidates the selected facts and rules that the human approved. If a protected fact violates its approved terms, DueGate blocks execution and requires fresh approval.
 
-DueGate binds payment approval to explicit financial evidence and rechecks that
-evidence at the execution boundary it controls.
+[Watch the demo (2:24)](https://youtu.be/vrOg0cmH8Tc) · [Try the offline walkthrough](docs/demo.md) · [Inspect the recorded sandbox proof](docs/proof.md)
 
-Built for the Airwallex Agentic Banking Hackathon.
-Hackathon prototype / sandbox validated. **Not production ready.**
+Built for the Airwallex Agentic Banking Hackathon. This is a sandbox-validated prototype.
 
-## Why DueGate exists
+## When does a payment need fresh approval?
 
-A payment can be approved with enough cash, acceptable FX, valid timing and correct
-beneficiary details. Before execution, funding may slip, FX may go stale, the cutoff
-may pass, details may change—or execution may already have been attempted.
+In the **synthetic policy example**, a human approved a payment while protected accounting cash was **USD 310,000**. The approval required cash to stay at or above **USD 250,000**. At execution time the selected balance is **USD 218,000**.
 
-**DueGate revalidates that context before money moves.**
+| Decision | Reason | Airwallex writes attempted |
+| --- | --- | ---: |
+| `REAPPROVAL_REQUIRED` | `FINANCIAL_CONTEXT_CHANGED` | 0 |
 
-## First judge scene: does the approval still hold?
+A change that stays within the approved minimum can satisfy the rule. A change to an unrelated accounting row leaves the approval intact. The demo values illustrate this policy. The separate recorded T:0 statement reads and their report period are available in the walkthrough.
 
-An approved payment is about to execute. DueGate revalidates only the selected
-claims bound to that approval. The leading UI panel shows this **synthetic policy
-demonstration**, not live T:0 observations:
+## Decisions
 
-| Protected claim | Approved value | Bound policy | Current value |
-| --- | --- | --- | --- |
-| accounting_cash · t0 | USD 310,000.00 | MINIMUM USD 250,000.00 | USD 218,000.00 |
-
-The current value no longer satisfies the policy. DueGate returns
-**REAPPROVAL_REQUIRED / FINANCIAL_CONTEXT_CHANGED**.
-**Airwallex writes attempted: 0.** These amounts and the threshold are synthetic;
-the panel does not execute a payment or update the separate EUR demo payable.
-
-T:0 supplies read-only accounting context. DueGate decides whether approval still
-holds. Airwallex remains the financial execution rail. Accounting cash does not
-replace Airwallex spendable balance. An unrelated accounting change does not
-invalidate approval.
-
-## Core decisions
-
-| Decision | Meaning |
+| Decision shown to the operator | Meaning |
 | --- | --- |
-| WAIT | Execution conditions are not ready; any existing approval must remain valid. The secondary funding example waits for a confirmed inflow before approval. |
-| EXECUTE | Financial controls and selected claims pass. The execution gate also requires valid human approval and an unused ledger claim. |
-| REAPPROVAL_REQUIRED | A protected claim violates its approved policy; the old approval cannot authorize execution. |
-| ESCALATE | Required evidence is missing, stale, out of period, ambiguous, malformed, unavailable, or requires investigation. |
-| BLOCK_DUPLICATE | Payment is completed or has an attached transfer; no second execution. |
+| EXECUTE READY | Current policy checks pass. The payment is eligible to proceed through human approval and execution. No money has moved at this step. |
+| WAIT | Free cash is insufficient, but a confirmed inflow can cover the shortfall before the safe execution cutoff. |
+| REAPPROVAL_REQUIRED | A protected term violates its approved rule. A human must approve the new context before execution. |
+| ESCALATE | The payment needs review, for example because funding arrives too late or required evidence is missing, stale or ambiguous. |
+| BLOCK_DUPLICATE | An existing payment or transfer record blocks another execution of the same obligation. |
 
-## How it works
+## Architecture and authority
 
-Payment obligation → current financial context → **DueGate decision** → exact human
-approval → Airwallex execution → audit evidence.
-
-- **T:0:** read-only accounting / financial context.
-- **DueGate:** deterministic execution-governance layer.
-- **Airwallex:** spendable balance, FX and execution rail.
-- **Claude:** interpretation only, never financial authority.
-
-Claude can supply typed context from unstructured updates. It is not required for
-DueGate's deterministic controls.
-
-## Approval binding
-
-Approval binds a **versioned multi-source manifest**: selected payment, Airwallex,
-DueGate policy and optional T:0 claims. Each claim records its source, normalized
-approved value, comparison rule and relevant units/provenance. The fingerprint
-covers this manifest, not raw reports or provider metadata.
-
-Only material violations of protected claims require reapproval. Unrelated
-accounting changes do not invalidate approval. EXECUTE eligibility alone never
-authorizes money movement.
-
-## Airwallex integration
-
-Airwallex is the financial execution layer: balances, beneficiary lookup, FX quotes,
-conversion, transfer validation/creation and status reads.
-
-Writes are disabled by default. A persistent ledger prevents duplicate execution
-across restart; failed or ambiguous submissions are never blindly retried.
-
-## T:0 accounting context
-
-**Paid-obligation safeguard.** A validated, bound T:0 bill marked PAID produces
-BLOCK_DUPLICATE, with no FX quote, conversion or transfer request for that check.
-The recorded USD bill is a separate obligation from the EUR demo payable.
-
-**Financial-statement context.** An opted-in approval can bind balance-sheet bank
-cash and cash-flow net change, together with entity, currency and report period.
-Selected money claims support MUST_EQUAL or an explicitly configured MINIMUM, using
-integer minor units. Every selected numeric claim requires an explicit policy. The server explicitly
-selects MUST_EQUAL for its statement bindings; the offline
-policy example uses a synthetic minimum. Matching context only supports the existing decision; it cannot independently
-authorize EXECUTE. Protected context is checked again at approval and execution.
-
-| Statement check | DueGate result |
+| Participant | Responsibility |
 | --- | --- |
-| Protected claim materially violates policy | REAPPROVAL_REQUIRED / FINANCIAL_CONTEXT_CHANGED |
-| Explicit capture-freshness limit exceeded | ESCALATE / FINANCIAL_CONTEXT_STALE |
-| Required context incomplete | ESCALATE / FINANCIAL_CONTEXT_INCOMPLETE |
-| Decision date outside report period | ESCALATE / FINANCIAL_CONTEXT_OUT_OF_PERIOD |
+| T:0 | Supplies read-only accounting context for explicitly selected claims, such as bank-group cash for a specified entity, currency and report period. Accounting cash is distinct from the spendable Airwallex wallet balance. |
+| Claude (optional) | Turns an unstructured funding update into typed facts. DueGate validates identity, amounts and timing before applying them. Claude has no authority to approve, choose beneficiaries, override policy, decide EXECUTE READY or call Airwallex execution. |
+| DueGate | Applies deterministic funding, reserve, FX, cutoff, approval and duplicate checks. It records which rule allowed or blocked the next action. |
+| Human approver | Authorizes the exact payment terms and protected context. A material violation requires a fresh human approval. |
+| Airwallex | Supplies spendable wallet balances, beneficiary information and FX quotes. Its sandbox conversion and transfer APIs form the execution rail. |
 
-T:0 financial statements are generated from the GL at request time. DueGate records
-the report period and local capture time; it does not invent a statement-level
-`as_of` field. Capture time is excluded from the fingerprint; it is evaluated only
-when an explicit maximum capture-age policy is bound. Raw T:0 reports are never
-blindly hashed as approval context. The two report reads are separate observations, not an atomic
-cross-system snapshot. Accounting cash does not replace wallet balance.
+An approval records the selected payment, FX, policy and optional accounting fields together with their comparison rules. DueGate compares those fields at approval and again before submission. An exact quote term must still match. A balance bound to a minimum must still meet it. Missing evidence requires investigation and has a different outcome from a confirmed policy violation.
 
-T:0 supplies read-only accounting context. DueGate determines whether that context
-remains acceptable for execution. Airwallex remains the source of spendable balance
-and the execution rail. [Scope and validation details](docs/architecture.md).
+The execution controller locks the approved payload and persists request and provider identifiers in a local ledger. It requires a settled conversion before submitting the supplier transfer. An ambiguous submission goes to review. If a failure occurs after conversion, the ledger retains the conversion evidence and the controller stops before the transfer. [Architecture and safety model](docs/architecture.md)
 
-## Demonstrated controls
+## Recorded Airwallex proof
 
-- Stale/out-of-limit FX refusal, reserve protection and cutoff enforcement
-- Exact-context approval and approval invalidation
-- Duplicate and restart protection
-- Failure/ambiguity handling and audit evidence
+The historical sandbox run sold **USD 1.12**, received **EUR 1.00**, and created one **EUR 1.00** supplier transfer.
 
-## Live Claude context interpretation
+| Observation | Recorded result |
+| --- | --- |
+| FX conversion status | SETTLED |
+| Supplier transfer status | PROCESSING |
+| Transfer funding status | FUNDED |
+| Duplicate execution attempt | Blocked, including after restart |
 
-> The $4,000 customer payment expected Thursday has been delayed until Monday.
+Recipient delivery is not claimed. The EUR 10,000 narrative obligation was never executed. The public fixture contains sanitized results from the separate EUR 1.00 run. [Balance changes and proof limitations](docs/proof.md) · [Recorded fixture](fixtures/recorded-proof.json)
 
-Claude extracts a **USD 4,000 inflow**, **Thursday → Monday**, **delayed**.
-DueGate validates the facts, preserves Monday as a date/window, and independently
-applies its controls. Verified live result: **ESCALATE / INFLOW_TOO_LATE**.
+## Run locally
 
-Claude cannot approve, execute, select beneficiaries, override reserve/FX/cutoff
-policy or decide financial actions. **DueGate owns payment decisions.**
-[Claude integration details](docs/claude-integration.md).
-
-## Run the judge demo
-
-Requires Node.js 24+ and npm. From the repository root:
+Use Node.js 24+ and npm. From the repository root:
 
 ```sh
 npm ci
 npm test
 npm run typecheck
 npm run build
-npm run demo:presentation -- --presentation-run=v3-take-01 --t0-recorded
+npm run demo:presentation -- --presentation-run=judge-demo --t0-recorded
 ```
 
-Open [the local demo](http://127.0.0.1:4311). No credentials are required.
-Presentation mode uses recorded Airwallex proof, synthetic quotes and a fixed demo
-clock. **No financial writes.**
+Open [the local demo](http://127.0.0.1:4311/). Presentation mode uses a fixed clock, synthetic quotes, an offline interpreter and recorded provider evidence. It requires no credentials and performs no financial writes. A new run name starts the supplier payable at WAIT. Restart with the same name to inspect its persisted decision and audit history. [Step-by-step walkthrough](docs/demo.md)
 
-[Walkthrough](docs/demo.md): selected-claim reapproval proof → WAIT / funding timing
-→ delayed funding → ESCALATE → restored execution conditions → human approval
-→ protected quote/context change → REAPPROVAL_REQUIRED → fresh approval
-→ recorded Airwallex sandbox proof → BLOCK_DUPLICATE → restart protection
-→ audit evidence.
+The project uses TypeScript, Node.js, a plain HTML/CSS/TypeScript frontend and local file persistence. The verification suite has **457 passing automated tests**.
 
-Choose a fresh presentation-run name for each new recording; restart the same name
-to demonstrate persistence. Never delete or reset historical ledgers or proof files.
-See the [V3 recording guide](docs/demo.md#v3-recording-guide) for the 2:15–2:45 sequence.
+## Scope and limits
 
-**The EUR 10,000 narrative obligation was NOT executed.** The recorded historical
-proof concerns a separate **EUR 1.00 synthetic Airwallex sandbox transfer**.
+Human identity is a local demo label. The ledger demonstrates duplicate protection across local restarts. Production identity, distributed coordination and operational recovery are outside this prototype. DueGate controls the submission boundary it owns and makes no guarantee about cancelling a payment independently scheduled at a provider.
 
-With `--t0-recorded`, the [leading protected-context panel](docs/demo.md#selected-claim-reapproval-and-statement-period-recheck) shows the synthetic minimum-cash policy violation. Its expandable disclosure retains the recorded statement/period check. T:0 supplies read-only accounting context. DueGate determines whether the context remains acceptable for execution. Airwallex remains the source of spendable balance and the execution rail.
-
-## Historical sandbox proof
-
-- One final controlled USD → EUR conversion: **SETTLED**
-- One EUR 1.00 transfer: **PROCESSING / FUNDED**
-- Duplicate and post-restart duplicate attempts blocked
-- **Recipient delivery not proven**
-
-Counts describe the final controlled proof, not all development activity. Public
-fixtures use sanitized provider aliases; private original evidence stays local.
-They are summaries, not independently verifiable provider receipts. [Proof](docs/proof.md).
-
-## Tech stack and verification
-
-TypeScript, Node.js, plain HTML/CSS/TypeScript frontend, Node's built-in test runner
-and local filesystem persistence.
-
-**450 tests passed · 0 failed.** Strict TypeScript typecheck, frontend build, secret
-scan and live Claude interpretation: **PASS**. Historical Airwallex proof preserved;
-zero new conversions or transfers during Claude integration.
-
-## Limitations
-
-Local files are not production-grade distributed coordination. Human operator
-identity is a demo label; production authentication, custody, permissions and
-hardening are not implemented. Broader live-model evaluation remains necessary.
-New approvals use manifest version 2. Older pending/approved records cannot silently
-be reused under the new schema; they require fresh review. Existing executed claims
-and duplicate protection remain intact. A failure discovered after conversion
-preserves review and the already-attempted write count; no supplier transfer follows.
-DueGate does not guarantee cancellation of an independently scheduled Airwallex
-transfer or claim to have invented approval revocation.
-**Not production ready.** Never erase a live ledger to retry a payment.
-
-## Local / sandbox configuration
-
-Presentation mode needs no secrets. For live interpretation, copy .env.example to
-.env, set ANTHROPIC_API_KEY locally and optionally ANTHROPIC_MODEL
-(default: claude-haiku-5-5), then run:
-
-```sh
-npm run demo:claude
-```
-
-Each Interpret update click can make one paid request; execution evidence remains
-recorded. Stop any existing server on port 4311 before switching modes.
-
-Separately authorized sandbox development requires AIRWALLEX_CLIENT_ID,
-AIRWALLEX_API_KEY and an existing DUEGATE_SANDBOX_BENEFICIARY_ID in .env.
-Never commit credentials or use production credentials. No new transfer is needed
-for judging. See [setup and demo details](docs/demo.md).
-
-## Technical docs
-
-[Architecture](docs/architecture.md) · [Demo](docs/demo.md) · [Proof](docs/proof.md) ·
-[Claude integration](docs/claude-integration.md) ·
-[Repository readiness](docs/github-readiness-report.md)
+The recorded demo uses no live Claude calls. A separate live interpretation check preserved a delayed inflow's date uncertainty and led DueGate to escalate before the payment cutoff. [Claude verification and optional setup](docs/claude-integration.md)
 
 No open-source license has been selected or granted.

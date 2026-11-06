@@ -1,6 +1,6 @@
 # GitHub readiness report
 
-Initial repository preparation verification: 2026-10-28. Historical checklist below records that preparation; current Claude completion and 318-test validation are documented in README and docs/claude-integration.md.
+This checklist records the initial publication review on October 28, 2026. Counts and repository settings below refer to that review. See the [README](../README.md) for the current demo and verification results.
 
 1. **Repository readiness: PASS.** Sanitized publication tree and reproducible offline demo prepared for shadehook/duegate.
 2. **Secret scan: PASS.** Configured credential values were found only in excluded .env during the first-party inventory scan. Exact staged-content checks found no configured private values, recognizable provider keys, JWTs or private keys. Checks do not constitute a formal security certification.

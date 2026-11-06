@@ -1,6 +1,6 @@
 # Claude integration
 
-**Integration: COMPLETE** for the scoped fact extraction → local validation → deterministic decision flow. **Live verification: PASS.**
+Claude turns unstructured funding updates into typed facts. DueGate validates those facts and evaluates payment policy. The recorded demo uses the offline interpreter. The example below documents the separate live Claude verification.
 
 ## Verified live example
 
@@ -28,7 +28,7 @@ Exactly one request was made in the successful authorized verification, without 
 
 ## Responsibility boundary and contract
 
-Claude extracts facts only. It cannot approve, choose a beneficiary, override reserve/FX/cutoff policy, invoke a provider or return an authoritative financial decision. DueGate owns WAIT / EXECUTE / ESCALATE / BLOCK_DUPLICATE; human approval and persistent execution guards remain required.
+Claude extracts facts only. It cannot approve, choose a beneficiary, override reserve/FX/cutoff policy, invoke a provider or return an authoritative financial decision. DueGate determines WAIT, EXECUTE READY, REAPPROVAL_REQUIRED, ESCALATE or BLOCK_DUPLICATE. A human authorizes the protected terms, and the ledger guards execution.
 
 The existing FundingCandidate contract uses classification, expected_inflow_id, amount_minor, currency, eta_precision, new_eta_exact, new_eta_date, eta_window_start, eta_window_end and ambiguities. All fields are required; nullable fields must be explicit. eventType/changeType aliases, confidence, sourceText and action fields are rejected. Amounts are integer cents, not major-unit numbers.
 
@@ -56,7 +56,7 @@ npm run demo:presentation remains offline and requires no credentials. The two m
 
 ## Tests and diagnostics
 
-319 tests pass; strict typecheck, frontend build and secret scan pass. Fixtures claude-success.json and claude-thinking-success.json are synthetic expected shapes, not raw live responses. They prove parsing, normalization, temporal windows and deterministic ESCALATE. Tests also cover failure modes, unchanged state on rejection, opaque thinking, injection, UI/audit privacy and zero-write restart protection. No live API request runs in npm test.
+Fixtures claude-success.json and claude-thinking-success.json are synthetic expected shapes, not raw live responses. They prove parsing, normalization, temporal windows and deterministic ESCALATE. Tests also cover failure modes, unchanged state on rejection, opaque thinking, injection, UI/audit privacy and zero-write restart protection. No live API request runs in npm test.
 
 | Stage | Codes |
 | --- | --- |
