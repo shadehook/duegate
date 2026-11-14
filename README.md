@@ -44,7 +44,7 @@ The execution controller locks the approved payload and persists request and pro
 
 ## FAQ and Failure Handling
 
-**Why isn’t this just Airwallex approval?** Airwallex is the execution rail. Immediately before DueGate submits a payment, it rechecks the approved terms and protected financial context to determine whether the human approval still holds.
+**Why isn’t this just Airwallex approval?** Airwallex approval authorizes the payment workflow and terms. DueGate adds a separate execution-time check of selected external financial and accounting conditions that supported that approval before DueGate submits the payment.
 
 **What if the payment details stay the same but the financial context changes?** An invoice can still match its approval while a protected balance falls below its approved minimum. If a protected claim violates its rule, DueGate invalidates the approval and requires fresh human approval.
 
@@ -54,7 +54,7 @@ The execution controller locks the approved payload and persists request and pro
 
 **Does Claude decide whether money moves?** No. Claude can optionally interpret funding updates. It cannot approve payments, select beneficiaries, override policy, decide EXECUTE READY or call Airwallex execution.
 
-**What happens if Airwallex times out or the submission outcome is uncertain?** Airwallex may already have accepted the original request. DueGate sends the outcome to review and holds further execution to avoid a duplicate submission.
+**What happens if Airwallex times out or the submission outcome is uncertain?** Airwallex may already have accepted the original request, so DueGate does not blindly retry. If a failure is discovered after FX conversion has already settled, DueGate retains the conversion evidence, stops before the supplier transfer, and sends the case to review rather than implying that nothing moved.
 
 **Can DueGate stop any Airwallex payment after it has already been scheduled?** No. DueGate can block a payment at the submission boundary it controls. It cannot guarantee cancellation of a payment independently scheduled at Airwallex.
 
