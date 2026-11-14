@@ -1,6 +1,8 @@
 # DueGate
 
-**Approval is not permanent permission.** DueGate is an execution-time authorization layer for finance teams making cross-border supplier payments. A treasurer may approve a payment in the morning, then see funding slip, a quote expire, or a protected cash balance fall before the payment is sent. DueGate checks whether that specific approval still authorizes execution. Choosing which bills to pay is outside its scope.
+**Approval is not permanent permission.** DueGate is an execution-time authorization layer that checks whether the financial conditions supporting an approved action still hold before execution.
+
+Its first demonstrated application is cross-border supplier payments through Airwallex. A treasurer may approve a payment in the morning, then see funding slip, a quote expire, or a protected cash balance fall before the payment is sent. DueGate checks whether that specific approval still authorizes execution. Choosing which bills to pay is outside its scope.
 
 Immediately before submitting a payment to Airwallex, DueGate revalidates the selected facts and rules that the human approved. If a protected fact violates its approved terms, DueGate blocks execution and requires fresh approval.
 
