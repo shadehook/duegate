@@ -1,19 +1,16 @@
 # DueGate
 
-**Approval is not permanent permission.** DueGate is an execution-time authorization layer that checks whether the financial conditions supporting an approved action still hold before execution.
+**Approval is not permanent permission.**
 
-## Demo Day walkthrough
+**Start here:** [Demo Day walkthrough (3:53)](https://www.youtube.com/watch?v=XObPhGLYD1A)
 
-**Final walkthrough, 3:53:**  
-https://www.youtube.com/watch?v=XObPhGLYD1A
+[Try the offline walkthrough](docs/demo.md) · [Inspect the recorded sandbox proof](docs/proof.md)
 
-This is the recommended starting point for reviewing DueGate.
+DueGate is an execution-time authorization layer that checks whether the financial conditions supporting an approved action still hold before execution.
 
 Its first demonstrated application is cross-border supplier payments through Airwallex. A treasurer may approve a payment in the morning, then see funding slip, a quote expire, or a protected cash balance fall before the payment is sent. DueGate checks whether that specific approval still authorizes execution. Choosing which bills to pay is outside its scope.
 
 Immediately before submitting a payment to Airwallex, DueGate revalidates the selected facts and rules that the human approved. If a protected fact violates its approved terms, DueGate blocks execution and requires fresh approval.
-
-[Original submission demo (2:24)](https://youtu.be/vrOg0cmH8Tc) · [Try the offline walkthrough](docs/demo.md) · [Inspect the recorded sandbox proof](docs/proof.md)
 
 Built for the Airwallex Agentic Banking Hackathon. This is a sandbox-validated prototype.
 
@@ -105,3 +102,7 @@ Human identity is a local demo label. The ledger demonstrates duplicate protecti
 The recorded demo uses no live Claude calls. A separate live interpretation check preserved a delayed inflow's date uncertainty and led DueGate to escalate before the payment cutoff. [Claude verification and optional setup](docs/claude-integration.md)
 
 No open-source license has been selected or granted.
+
+## Historical demos
+
+- [Original submission demo (2:24)](https://youtu.be/vrOg0cmH8Tc)
