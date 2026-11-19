@@ -48,24 +48,6 @@ An approval records the selected payment, FX, policy and optional accounting fie
 
 The execution controller locks the approved payload and persists request and provider identifiers in a local ledger. It requires a settled conversion before submitting the supplier transfer. An ambiguous submission goes to review. If a failure occurs after conversion, the ledger retains the conversion evidence and the controller stops before the transfer. [Architecture and safety model](docs/architecture.md)
 
-## FAQ and Failure Handling
-
-**Why isn’t this just Airwallex approval?** Airwallex approval authorizes the payment workflow and terms. DueGate adds a separate execution-time check of selected external financial and accounting conditions that supported that approval before DueGate submits the payment.
-
-**What if the payment details stay the same but the financial context changes?** An invoice can still match its approval while a protected balance falls below its approved minimum. If a protected claim violates its rule, DueGate invalidates the approval and requires fresh human approval.
-
-**What if accounting evidence is missing or stale?** When a rule depends on accounting evidence that is missing or too old, DueGate escalates for review. Execution stays on hold until the required evidence can be verified.
-
-**What if the same obligation is attempted twice?** DueGate uses persisted execution records and request/provider identifiers to block duplicate execution. Separately, explicitly bound accounting evidence can block an obligation already recorded as paid. The sandbox demonstration shows that execution duplicate protection survives a local restart.
-
-**Does Claude decide whether money moves?** No. Claude can optionally interpret funding updates. It cannot approve payments, select beneficiaries, override policy, decide EXECUTE READY or call Airwallex execution.
-
-**What happens if Airwallex times out or the submission outcome is uncertain?** Airwallex may already have accepted the original request, so DueGate does not blindly retry. If a failure is discovered after FX conversion has already settled, DueGate retains the conversion evidence, stops before the supplier transfer, and sends the case to review rather than implying that nothing moved.
-
-**Can DueGate stop any Airwallex payment after it has already been scheduled?** No. DueGate can block a payment at the submission boundary it controls. It cannot guarantee cancellation of a payment independently scheduled at Airwallex.
-
-**Is DueGate production ready?** No. DueGate is a sandbox-validated prototype. Production use still requires enterprise identity, distributed coordination, monitoring, operational recovery and stronger deployment controls.
-
 ## Recorded Airwallex proof
 
 The historical sandbox run sold **USD 1.12**, received **EUR 1.00**, and created one **EUR 1.00** supplier transfer.
@@ -91,6 +73,24 @@ Verified locally on November 18, 2026:
 
 DueGate is a sandbox prototype and has not undergone an independent production security audit.
 
+## FAQ and Failure Handling
+
+**Why isn’t this just Airwallex approval?** Airwallex approval authorizes the payment workflow and terms. DueGate adds a separate execution-time check of selected external financial and accounting conditions that supported that approval before DueGate submits the payment.
+
+**What if the payment details stay the same but the financial context changes?** An invoice can still match its approval while a protected balance falls below its approved minimum. If a protected claim violates its rule, DueGate invalidates the approval and requires fresh human approval.
+
+**What if accounting evidence is missing or stale?** When a rule depends on accounting evidence that is missing or too old, DueGate escalates for review. Execution stays on hold until the required evidence can be verified.
+
+**What if the same obligation is attempted twice?** DueGate uses persisted execution records and request/provider identifiers to block duplicate execution. Separately, explicitly bound accounting evidence can block an obligation already recorded as paid. The sandbox demonstration shows that execution duplicate protection survives a local restart.
+
+**Does Claude decide whether money moves?** No. Claude can optionally interpret funding updates. It cannot approve payments, select beneficiaries, override policy, decide EXECUTE READY or call Airwallex execution.
+
+**What happens if Airwallex times out or the submission outcome is uncertain?** Airwallex may already have accepted the original request, so DueGate does not blindly retry. If a failure is discovered after FX conversion has already settled, DueGate retains the conversion evidence, stops before the supplier transfer, and sends the case to review rather than implying that nothing moved.
+
+**Can DueGate stop any Airwallex payment after it has already been scheduled?** No. DueGate can block a payment at the submission boundary it controls. It cannot guarantee cancellation of a payment independently scheduled at Airwallex.
+
+**Is DueGate production ready?** No. DueGate is a sandbox-validated prototype. Production use still requires enterprise identity, distributed coordination, monitoring, operational recovery and stronger deployment controls.
+
 ## Run locally
 
 Use Node.js 24+ and npm. From the repository root:
@@ -105,7 +105,7 @@ npm run demo:presentation -- --presentation-run=judge-demo --t0-recorded
 
 Open [the local demo](http://127.0.0.1:4311/). Presentation mode uses a fixed clock, synthetic quotes, an offline interpreter and recorded provider evidence. It requires no credentials and performs no financial writes. A new run name starts the supplier payable at WAIT. Restart with the same name to inspect its persisted decision and audit history. [Step-by-step walkthrough](docs/demo.md)
 
-The project uses TypeScript, Node.js, a plain HTML/CSS/TypeScript frontend and local file persistence. The verification suite has **457 passing automated tests**.
+The project uses TypeScript, Node.js, a plain HTML/CSS/TypeScript frontend and local file persistence.
 
 ## Scope and limits
 
