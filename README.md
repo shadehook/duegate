@@ -79,6 +79,18 @@ The historical sandbox run sold **USD 1.12**, received **EUR 1.00**, and created
 
 Recipient delivery is not claimed. The EUR 10,000 narrative obligation was never executed. The public fixture contains sanitized results from the separate EUR 1.00 run. [Balance changes and proof limitations](docs/proof.md) · [Recorded fixture](fixtures/recorded-proof.json)
 
+## Verification status
+
+Verified locally on November 18, 2026:
+
+- **Automated tests: PASS** — 457 passed, 0 failed, 0 skipped (`npm test`). Coverage includes duplicate execution blocking, persisted approval/transfer recovery after restart, and safe handling of ambiguous provider outcomes.
+- **Strict type checking: PASS** — `npm run typecheck` (`tsc --noEmit`, strict mode).
+- **Frontend production build: PASS** — `npm run build`.
+- **Offline presentation smoke test: PASS** — `npm run demo:presentation -- --presentation-run=verification-20261118 --t0-recorded`; browser walkthrough verified WAIT, ESCALATE, approval invalidation, historical execution evidence and duplicate blocking. A server restart preserved the transfer reference and block. Zero financial writes.
+- **Scoped secrets scan: PASS** — 71 tracked working-tree files and the Git index checked against configured credential values and provider-key, private-key, JWT and bearer-token patterns; no matches. `.env` is ignored and untracked; `.env.example` contains empty values only.
+
+DueGate is a sandbox prototype and has not undergone an independent production security audit.
+
 ## Run locally
 
 Use Node.js 24+ and npm. From the repository root:
