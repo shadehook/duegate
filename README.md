@@ -2,11 +2,18 @@
 
 **Approval is not permanent permission.** DueGate is an execution-time authorization layer that checks whether the financial conditions supporting an approved action still hold before execution.
 
+## Demo Day walkthrough
+
+**Final walkthrough, 3:53:**  
+https://www.youtube.com/watch?v=XObPhGLYD1A
+
+This is the recommended starting point for reviewing DueGate.
+
 Its first demonstrated application is cross-border supplier payments through Airwallex. A treasurer may approve a payment in the morning, then see funding slip, a quote expire, or a protected cash balance fall before the payment is sent. DueGate checks whether that specific approval still authorizes execution. Choosing which bills to pay is outside its scope.
 
 Immediately before submitting a payment to Airwallex, DueGate revalidates the selected facts and rules that the human approved. If a protected fact violates its approved terms, DueGate blocks execution and requires fresh approval.
 
-[Watch the demo (2:24)](https://youtu.be/vrOg0cmH8Tc) · [Try the offline walkthrough](docs/demo.md) · [Inspect the recorded sandbox proof](docs/proof.md)
+[Original submission demo (2:24)](https://youtu.be/vrOg0cmH8Tc) · [Try the offline walkthrough](docs/demo.md) · [Inspect the recorded sandbox proof](docs/proof.md)
 
 Built for the Airwallex Agentic Banking Hackathon. This is a sandbox-validated prototype.
 
