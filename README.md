@@ -4,7 +4,7 @@
 
 **Start here:** [Demo Day walkthrough (3:53)](https://www.youtube.com/watch?v=XObPhGLYD1A)
 
-[Try the offline walkthrough](docs/demo.md) · [Inspect the recorded sandbox proof](docs/proof.md)
+[Original submission demo (2:24)](https://youtu.be/vrOg0cmH8Tc) · [Try the offline walkthrough](docs/demo.md) · [Inspect the recorded sandbox proof](docs/proof.md)
 
 DueGate is an execution-time authorization layer that checks whether the financial conditions supporting an approved action still hold before execution.
 
@@ -102,7 +102,3 @@ Human identity is a local demo label. The ledger demonstrates duplicate protecti
 The recorded demo uses no live Claude calls. A separate live interpretation check preserved a delayed inflow's date uncertainty and led DueGate to escalate before the payment cutoff. [Claude verification and optional setup](docs/claude-integration.md)
 
 No open-source license has been selected or granted.
-
-## Historical demos
-
-- [Original submission demo (2:24)](https://youtu.be/vrOg0cmH8Tc)
