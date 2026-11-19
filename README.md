@@ -10,6 +10,8 @@ DueGate is an execution-time authorization layer that checks whether the financi
 
 Its first demonstrated application is cross-border supplier payments through Airwallex. A treasurer may approve a payment in the morning, then see funding slip, a quote expire, or a protected cash balance fall before the payment is sent. DueGate checks whether that specific approval still authorizes execution. Choosing which bills to pay is outside its scope.
 
+**Who it’s for:** Finance and treasury teams that need to verify that an approval still holds before releasing a payment. ERP and accounting platforms, as well as payment-agent builders, could integrate the same check into their workflows.
+
 Immediately before submitting a payment to Airwallex, DueGate revalidates the selected facts and rules that the human approved. If a protected fact violates its approved terms, DueGate blocks execution and requires fresh approval.
 
 Built for the Airwallex Agentic Banking Hackathon. This is a sandbox-validated prototype.
