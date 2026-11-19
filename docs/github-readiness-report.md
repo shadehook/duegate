@@ -1,5 +1,7 @@
 # GitHub readiness report
 
+> **Historical review:** This report records the repository review completed on October 28, 2026. Test counts and repository visibility reflect that date. See the [main README](../README.md) for current repository information and [Verification status](../README.md#verification-status) for the latest test results.
+
 This checklist records the initial publication review on October 28, 2026. Counts and repository settings below refer to that review. See the [README](../README.md) for the current demo and verification results.
 
 1. **Repository readiness: PASS.** Sanitized publication tree and reproducible offline demo prepared for shadehook/duegate.
